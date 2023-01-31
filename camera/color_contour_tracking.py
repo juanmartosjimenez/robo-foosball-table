@@ -3,6 +3,10 @@ import time
 import numpy as np
 import pyrealsense2 as rs
 
+"""
+Tracks a specific color object in the camera view using HSV color space and contour detection.
+"""
+
 # Initialize Camera Intel Realsense
 config = rs.config()
 config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 60)
@@ -39,17 +43,20 @@ def start_stream():
 
         color_image = np.asanyarray(color_frame.get_data())
         color_image = cv2.GaussianBlur(color_image, (5, 5), 0)
-        cv2.imshow("Color frame", color_image)
+        # cv2.imshow("Color frame", color_image)
         hsv = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
-        cv2.imshow("hsv", hsv)
         # Thresholding
         mask = cv2.inRange(hsv, lower_hsv, higher_hsv)
+        #mask = cv2.erode(mask, None, iterations=2)
         mask = cv2.dilate(mask, None, iterations=2)
-        cv2.imshow("mask", mask)
 
         # Find contours
         cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+        if not cnts:
+            cv2.imshow("Frame", color_image)
+            key = cv2.waitKey(1)
+            continue
 
         # Find the largest contour
         c = max(cnts, key=cv2.contourArea)
