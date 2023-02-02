@@ -2,6 +2,7 @@ import cv2
 import time
 import numpy as np
 import pyrealsense2 as rs
+import imutils
 
 """
 Tracks a specific color object in the camera view using HSV color space and contour detection.
@@ -74,9 +75,12 @@ def start_stream():
         cv2.circle(color_image, (cX, cY), 5, (255, 0, 0), -1)
 
         # Display the result
+        cv2.imshow("Mask", mask)
         cv2.imshow("Frame", color_image)
         key = cv2.waitKey(1)
         if key == ord("q"):
             break
+
+
 
 start_stream()
