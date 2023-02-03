@@ -17,6 +17,11 @@ def get_hsv_range(rgb: tuple):
 
 
 def start_pipe():
+    """
+    Starts realsense pipeline and returns it. When a pipe is started, it takes a few frames to for the camera to adjust
+    to lighting conditions. Wait until 40 frames have been captured before returning the pipe.
+    :return:
+    """
     config = rs.config()
     config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 60)
     pipe = rs.pipeline()
