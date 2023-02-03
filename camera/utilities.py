@@ -33,3 +33,18 @@ def start_pipe():
         else:
             break
     return pipe
+
+
+def read_color_frame(pipe):
+    """
+    Wait until color frame is available and return it.
+    :param pipe:
+    :return:
+    """
+    while True:
+        frames = pipe.wait_for_frames()
+        color_frame = frames.get_color_frame()
+        if not color_frame:
+            continue
+        else:
+            return np.asanyarray(color_frame.get_data())
