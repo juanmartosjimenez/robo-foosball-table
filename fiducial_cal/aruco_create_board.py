@@ -1,10 +1,12 @@
 import time
 
 import cv2 as cv
+import pyrealsense2 as rs
 from numpy import size
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from camera.utilities import get_screenshot
+import numpy as np
+from camera.utilities import get_screenshot, start_pipe
 
 
 def generate_markers():
@@ -28,17 +30,32 @@ def detect_markers():
     gray = cv.cvtColor(realsense_screenshot, cv.COLOR_BGR2GRAY)
 
     corners, ids, rejected = detector.detectMarkers(realsense_screenshot)
-    print(corners, ids, rejected)
     # verify *at least* one ArUco marker was detected
     if len(corners) > 0:
         cv.aruco.drawDetectedMarkers(realsense_screenshot, corners, ids)
         cv.imshow("Image", realsense_screenshot)
-        cv.waitKey(0)
+        #cv.waitKey(0)
 
-    if rejected:
-        cv.aruco.drawDetectedMarkers(realsense_screenshot, rejected, borderColor=(0, 0, 255))
-        cv.imshow("Image", realsense_screenshot)
-        cv.waitKey(0)
+    pipe = start_pipe()
+    intrinsics = pipe.get_active_profile().get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
+    extrinsics = pipe.get_active_profile().get_stream(rs.stream.color).as_video_stream_profile().get_extrinsics_to(to=pipe.get_active_profile().get_stream(rs.stream.color))
+    print(intrinsics.ppx)
+    print(intrinsics.ppy)
+    print(intrinsics.fx)
+    print(intrinsics.fy)
+    print(intrinsics.width)
+    print(intrinsics.height)
+    print(extrinsics)
+
+    for ii in range(len(corners)):
+        print("Marker {}: {}".format(ids[ii], corners[ii]))
+        print("Marker {}: {}".format(ids[ii], cv.solvePnP(corners[ii], 0.05, None)))
+
+
+    #if rejected:
+    #    cv.aruco.drawDetectedMarkers(realsense_screenshot, rejected, borderColor=(0, 0, 255))
+    #    cv.imshow("Image", realsense_screenshot)
+
 
 
 
