@@ -39,6 +39,7 @@ def detect_markers():
     pipe = start_pipe()
     intrinsics = pipe.get_active_profile().get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
     extrinsics = pipe.get_active_profile().get_stream(rs.stream.color).as_video_stream_profile().get_extrinsics_to(to=pipe.get_active_profile().get_stream(rs.stream.color))
+    print(intrinsics)
     print(intrinsics.ppx)
     print(intrinsics.ppy)
     print(intrinsics.fx)
