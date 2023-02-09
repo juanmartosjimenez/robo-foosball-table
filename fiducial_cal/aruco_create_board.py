@@ -33,24 +33,19 @@ def detect_markers():
     # verify *at least* one ArUco marker was detected
     if len(corners) > 0:
         cv.aruco.drawDetectedMarkers(realsense_screenshot, corners, ids)
-        cv.imshow("Image", realsense_screenshot)
-        #cv.waitKey(0)
 
     pipe = start_pipe()
     intrinsics = pipe.get_active_profile().get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
-    extrinsics = pipe.get_active_profile().get_stream(rs.stream.color).as_video_stream_profile().get_extrinsics_to(to=pipe.get_active_profile().get_stream(rs.stream.color))
-    print(intrinsics)
-    print(intrinsics.ppx)
-    print(intrinsics.ppy)
-    print(intrinsics.fx)
-    print(intrinsics.fy)
-    print(intrinsics.width)
-    print(intrinsics.height)
-    print(extrinsics)
+    camera_matrix = np.array([[intrinsics.fx, 0, intrinsics.ppx], [0, intrinsics.fy, intrinsics.ppy], [0, 0, 1]])
+    # Squares are 49.3mm x 49.3mm
+    objpoints = np.array([[0, 0, 0], [0, 49.3, 0], [49.3, 49.3, 0], [49.3, 0, 0]], dtype=np.float32)
 
     for ii in range(len(corners)):
-        print("Marker {}: {}".format(ids[ii], corners[ii]))
-        print("Marker {}: {}".format(ids[ii], cv.solvePnP(corners[ii], 0.05, None)))
+
+        retval, rvecs, tvecs = cv.solvePnP(objpoints, corners[ii], camera_matrix, None)
+        cv.drawFrameAxes(realsense_screenshot, camera_matrix, None, rvecs, tvecs, 50, thickness=2)
+    cv.imshow("Image", realsense_screenshot)
+    cv.waitKey(0)
 
 
     #if rejected:
