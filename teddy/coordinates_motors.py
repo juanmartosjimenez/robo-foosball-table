@@ -71,11 +71,5 @@ def stopAtLateralAddress(roboclaw, coordinate):
                     stopM1(roboclaw)
                     break
          
-
-                
-    
-
-
-
 if __name__ == "__main__":
     main()
