@@ -1,164 +1,131 @@
-# import the necessary packages
-from collections import deque
-from imutils.video import VideoStream
-import numpy as np
-import argparse
+import pyrealsense2 as rs
 import cv2
+from collections import deque
+import numpy as np
 import imutils
 import time
 
+# Initialize the realsense camera to ensure video is 60 fps
+print("initializing realsense")
+config = rs.config()
+config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 60)
+pipe = rs.pipeline()
+profile = pipe.start(config)
+print("success")
+
+# Returns an array of a given length containing the most recent center points,
+# or "None" if there are less stored points than the given number
 def lastPts(num):
     lastPts = []
-    cnt = 0
-    for i in range(1, len(pts)):
-        if cnt == num:
-            return lastPts
-        
-        if pts[i] is not None:
-            lastPts.append(pts[i])
-            cnt = cnt + 1
-    return lastPts
-            
+    if num > len(pts):
+        return None
+    else:
+        for i in range(num):
+            lastPts.append(pts[len(pts) - (1 + (num - i))])
+        return lastPts
 
-# construct the argument parse and parse the arguments
-ap = argparse.ArgumentParser()
-ap.add_argument("-v", "--video",
-    help="path to the (optional) video file")
-ap.add_argument("-b", "--buffer", type=int, default=64,
-    help="max buffer size")
-args = vars(ap.parse_args())
-
-# define the lower and upper boundaries of the "green"
-# ball in the HSV color space, then initialize the
-# list of tracked points
-greenLower = (7, 106, 179)
-greenUpper = (49, 205, 255)
-pts = deque(maxlen=args["buffer"])
-
-# if a video path was not supplied, grab the reference
-# to the webcam
-if not args.get("video", False):
-    vs = VideoStream(src=0).start()
+# Define the lower and upper HSV boundaries of the the foosball and initialize
+# the list of center points
+greenLower = (0, 90, 160)
+greenUpper = (200, 167, 255)
+pts = deque(maxlen=64)
     
-# otherwise, grab a reference to the video file
-else:
-    vs = cv2.VideoCapture(args["video"])
-    
-# allow the camera or video file to warm up
+# Wait for camera to warm up
 time.sleep(2.0)
 
-endXAvg = 0
-endXImm = 0
-
-# keep looping
+# Initialize variables and loop to continuously get and process video 
+endX = 150
+frameNum = 0
 while True:
-    # grab the current frame
-    frame = vs.read()
+    frameNum += 1
     
-    # handle the frame from VideoCapture or VideoStream
-    frame = frame[1] if args.get("video", False) else frame
+    # Get the RealSense frame to be processed by OpenCV
+    frames = pipe.wait_for_frames()
+    color_frame = frames.get_color_frame()
+    frame = np.asanyarray(color_frame.get_data())
     
-    # if we are viewing a video and we did not grab a frame,
-    # then we have reached the end of the video
-    if frame is None:
-        break
-    
-    # resize the frame, blur it, and convert it to the HSV
-    # color space
+    # Resize and blur the frame, then convert to HSV
     frame = imutils.resize(frame, width=600)
     blurred = cv2.GaussianBlur(frame, (11, 11), 0)
     hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
     
-    # construct a mask for the color "green", then perform
-    # a series of dilations and erosions to remove any small
-    # blobs left in the mask
+    # Construct color mask, then erode and dilate to clean up extraneous
+    # contours
     mask = cv2.inRange(hsv, greenLower, greenUpper)
     mask = cv2.erode(mask, None, iterations=2)
     mask = cv2.dilate(mask, None, iterations=2)
     
-    # find contours in the mask and initialize the current
-    # (x, y) center of the ball
-    cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE)
+    # Find all contours in the mask and initialize the center
+    cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cnts = imutils.grab_contours(cnts)
     center = None
     
-    # only proceed if at least one contour was found
+    # Initialize the best contour to none, then search for the best one
+    bestContour = None
     if len(cnts) > 0:
-        # find the largest contour in the mask, then use
-        # it to compute the minimum enclosing circle and
-        # centroid
-        c = max(cnts, key=cv2.contourArea)
-        ((x, y), radius) = cv2.minEnclosingCircle(c)
-        M = cv2.moments(c)
-        center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+        bestContour = cnts[0]
+        foundContour = False
         
-        # only proceed if the radius meets a minimum size
-        if radius > 10:
-            # draw the circle and centroid on the frame,
-            # then update the list of tracked points
-            cv2.circle(frame, (int(x), int(y)), int(radius),
-                (0, 255, 255), 2)
+        # Remove all contours not in area of interest
+        for c in cnts:
+            ((x, y), radius) = cv2.minEnclosingCircle(c)
+            M = cv2.moments(c)
+            center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+            if center[0] > 160 and center[0] < 500 and center[1] > 40 and center[1] < 300:
+                if cv2.contourArea(bestContour) < cv2.contourArea(c):
+                    foundContour = True
+                    bestContour = c
+        
+        # If found a contour in the area of interest, find and set the center
+        if foundContour:
+            c = bestContour
+            ((x, y), radius) = cv2.minEnclosingCircle(c)
+            M = cv2.moments(c)
+            center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+        
+            # Draw the circle and centroid on the frame, then update the list
+            # of tracked points
+            cv2.circle(frame, (int(x), int(y)), int(radius), (0, 255, 255), 2)
             cv2.circle(frame, center, 5, (0, 0, 255), -1)
+        else:
+            center = None
     
-    # update the points queue
-    #print(center)
-    pts.appendleft(center)
+    # Update the list of centers, removing the oldest one every 3 frames if
+    # there are more than 10 stored
+    if center:
+        pts.appendleft(center)
+    if frameNum == 3:
+        if len(pts) > 10:
+            pts.pop()
+        frameNum = 0
     
-    # loop over the set of tracked points
+    # Visually connect all the stored center points with lines
     for i in range(1, len(pts)):
-        # if either of the tracked points are None, ignore
-        # them
-        if pts[i - 1] is None or pts[i] is None:
-            continue
-        
-        # otherwise, compute the thickness of the line and
-        # draw the connecting lines
-        thickness = int(np.sqrt(args["buffer"] / float(i + 1)) * 2.5)
+        thickness = int(np.sqrt(64 / float(i + 1)) * 2.5)
         cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
-        
-    avgChangeInXPerY = 0
-    immChangeInXPerY = 0
-    #longChangeInXPerY = 0
-    last10Pts = lastPts(10)
-    last2Pts = lastPts(2)
-    lastPt = lastPts(1)
     
-    if len(last10Pts) == 10:
+    # Calculate the average change in x per change in y in order to predict
+    # the ball's path
+    last10Pts = lastPts(10)
+    if last10Pts:
+        xAvg = 0
         yAvg = 0
-        for i in range(1, len(last10Pts) - 1):
-            avgChangeInXPerY = avgChangeInXPerY + (last10Pts[i][1] - last10Pts[i + 1][1])
+        last10Pts = lastPts(10)
+        for i in range(9):
+            xAvg += (last10Pts[i][1] - last10Pts[i + 1][1])
             yAvg = yAvg + (last10Pts[i][0] - last10Pts[i + 1][0])
         
-        avgChangeInXPerY = avgChangeInXPerY / max(yAvg, 0.00000001)
-        endXAvg = lastPt[0][1] + (avgChangeInXPerY * (600 - lastPt[0][0]))
+        if yAvg > 0:
+            xAvg = xAvg / yAvg
+        else:
+            xAvg = 0
+        endX = pts[-1][1] + (xAvg * (600 - pts[-1][0]))
         
+    # Draw a circle where the ball is expected to cross the goal line    
+    cv2.circle(frame, (590, max(min(round(endX), 590), 10)), 10, (255, 0, 0), -1)
         
-        #longChangeInXPerY = (last10Pts[9][1] - last10Pts[0][1]) / (last10Pts[9][0] - last10Pts[0][0])
-        
-    cv2.circle(frame, (590, max(min(round(endXAvg), 590), 10)), 10, (255, 0, 0), -1)
-        
-        
-    if len(last2Pts) == 2:
-        immChangeInXPerY = (last2Pts[1][1] - last2Pts[0][1]) / max((last2Pts[1][0] - last2Pts[0][0]), 0.00000001)
-        endXImm = lastPt[0][1] + (immChangeInXPerY * (600 - lastPt[0][0]))
-    #cv2.circle(frame, (590, max(min(round(endXImm), 590), 10)), 10, (0, 255, 0), -1)
-        
-    # show the frame to our screen
+    # Display the current frame
     cv2.imshow("Frame", frame)
     key = cv2.waitKey(1) & 0xFF
-    
-    # if the 'q' key is pressed, stop the loop
-    if key == ord("q"):
-        break
-    
-# if we are not using a video file, stop the camera video stream
-if not args.get("video", False):
-    vs.stop()
 
-# otherwise, release the camera
-else:
-    vs.release()
-
-# close all windows
 cv2.destroyAllWindows()

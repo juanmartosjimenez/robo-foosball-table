@@ -10,6 +10,8 @@
 import cv2
 import argparse
 from operator import xor
+import pyrealsense2 as rs
+import numpy as np
 
 
 def callback(value):
@@ -72,21 +74,27 @@ def main():
         else:
             frame_to_thresh = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     else:
-        camera = cv2.VideoCapture(0)
+        print("initializing realsense")
+        config = rs.config()
+        config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 60)
+        pipe = rs.pipeline()
+        profile = pipe.start(config)
+        print("success")
+        #camera = cv2.VideoCapture(0)
 
     setup_trackbars(range_filter)
 
     while True:
         if args['webcam']:
-            ret, image = camera.read()
-
-            if not ret:
-                break
+            frames = pipe.wait_for_frames()
+            color_frame = frames.get_color_frame()
+            bgr_frame = np.asanyarray(color_frame.get_data())
+            #ret, image = camera.read()
 
             if range_filter == 'RGB':
                 frame_to_thresh = image.copy()
             else:
-                frame_to_thresh = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+                frame_to_thresh = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2HSV)
 
         v1_min, v2_min, v3_min, v1_max, v2_max, v3_max = get_trackbar_values(range_filter)
 
@@ -96,7 +104,7 @@ def main():
             preview = cv2.bitwise_and(image, image, mask=thresh)
             cv2.imshow("Preview", preview)
         else:
-            cv2.imshow("Original", image)
+            cv2.imshow("Original", bgr_frame)
             cv2.imshow("Thresh", thresh)
 
         if cv2.waitKey(1) & 0xFF is ord('q'):
