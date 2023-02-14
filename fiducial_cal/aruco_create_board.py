@@ -53,7 +53,5 @@ def detect_markers():
     #    cv.imshow("Image", realsense_screenshot)
 
 
-
-
 if __name__ == '__main__':
     detect_markers()
