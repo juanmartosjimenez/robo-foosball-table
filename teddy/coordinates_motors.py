@@ -1,4 +1,4 @@
-from roboclaw_3 import Roboclaw
+from roboclaw import Roboclaw
 import time
 
 ADDRESS = 0x80
