@@ -19,9 +19,9 @@ class MotorGUI(tk.Frame):
         self.forward_m1_button.grid(row=1, column=0)
         self.backward_m1_button = tk.Button(self, text="Backward M1", command=lambda: self.hardware_manager.move_backward_m1())
         self.backward_m1_button.grid(row=1, column=1)
-        self.current_pos_label = tk.Label(self, text="Current encoder position: {}".format(self.hardware_manager.get_encoder_pos()))
+        self.current_pos_label = tk.Label(self, text="Current encoder position: {}".format(self.hardware_manager.read_encoders()))
         self.current_pos_label.grid(row=2, column=0)
-        self.refresh_pos_button = tk.Button(self, text="Refresh position", command=lambda: self.current_pos_label.config(text="Current encoder position: {}".format(self.hardware_manager.get_encoder_pos())))
+        self.refresh_pos_button = tk.Button(self, text="Refresh position", command=lambda: self.current_pos_label.config(text="Current encoder position: {}".format(self.hardware_manager.read_encoders())))
         self.refresh_pos_button.grid(row=2, column=1)
         self.move_to_pos_m1_entry = tk.Entry(self, textvariable=tk.StringVar(self, value="0"))
         self.move_to_pos_m1_entry.grid(row=3, column=0)
@@ -37,8 +37,6 @@ class MotorGUI(tk.Frame):
         self.move_to_default_pos_m2_button.grid(row=4, column=2)
         self.strike_button = tk.Button(self, text="Strike", command=lambda: self.hardware_manager.strike_m2())
         self.strike_button.grid(row=5, column=0)
-        self.read_encoder_counts_button = tk.Button(self, text="Read encoder counts", command=lambda: print(self.hardware_manager.read_encoder_counters()))
-        self.read_encoder_counts_button.grid(row=5, column=1)
 
 
 

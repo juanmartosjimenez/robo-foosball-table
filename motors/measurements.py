@@ -1,1 +1,0 @@
-measurements = {"GOALIE_BAR_ROM_MM": 0.5}

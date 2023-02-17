@@ -1,3 +1,7 @@
 opencv-python~=4.7.0.68
 pyrealsense2~=2.53.1.4623
 numpy~=1.24.1
+imutils~=0.5.4
+pyserial~=3.5
+roboclaw~=1.0.0.dev1
+pydantic~=1.10.5
