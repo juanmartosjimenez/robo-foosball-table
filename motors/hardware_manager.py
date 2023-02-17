@@ -179,6 +179,32 @@ class HardwareManager:
         # Moves the player back to start position.
         self.move_to_default_pos_m2()
 
+    def _mm_to_encoder_m1(self, mm: float) -> int:
+        """
+        Converts inches to encoder position.
+        :param mm:
+        :return:
+        """
+        return int(mm * self.measurements.m1_mm_to_enc)
+
+    def _encoder_to_mm_m1(self, encoder: int) -> float:
+        """
+        Converts encoder position to inches.
+        :param encoder:
+        :return:
+        """
+        return round(encoder / self.measurements.m1_mm_to_enc, 2)
+
+    def move_to_mm_m1(self, mm):
+        """
+        Moves the player the given number of inches.
+        :param mm:
+        :return:
+        """
+        self.move_to_pos_m1(self._mm_to_encoder_m1(mm))
+
+
+
 
 if __name__ == "__main__":
     hardware_manager = HardwareManager()

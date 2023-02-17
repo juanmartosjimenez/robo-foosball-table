@@ -13,8 +13,6 @@ class MotorGUI(tk.Frame):
         self.home_m2_button.grid(row=0, column=1)
         self.stop_button = tk.Button(self, text="Stop", command=lambda: self.hardware_manager.stop())
         self.stop_button.grid(row=0, column=2)
-        self.right_rom_m1_button = tk.Button(self, text="Set right M1 ROM", command=lambda: self.hardware_manager.set_right_rom_m1())
-        self.right_rom_m1_button.grid(row=0, column=3)
         self.forward_m1_button = tk.Button(self, text="Forward M1", command=lambda: self.hardware_manager.move_forward_m1())
         self.forward_m1_button.grid(row=1, column=0)
         self.backward_m1_button = tk.Button(self, text="Backward M1", command=lambda: self.hardware_manager.move_backward_m1())
@@ -37,6 +35,11 @@ class MotorGUI(tk.Frame):
         self.move_to_default_pos_m2_button.grid(row=4, column=2)
         self.strike_button = tk.Button(self, text="Strike", command=lambda: self.hardware_manager.strike_m2())
         self.strike_button.grid(row=5, column=0)
+        self.move_to_mm_m1_entry = tk.Entry(self, textvariable=tk.StringVar(self, value="0"))
+        self.move_to_mm_m1_entry.grid(row=6, column=0)
+        self.move_to_mm_m1_button = tk.Button(self, text="Move to mm M1", command=lambda: self.hardware_manager.move_to_mm_m1(int(self.move_to_mm_m1_entry.get() if self.move_to_mm_m1_entry.get() else 0)))
+        self.move_to_mm_m1_button.grid(row=6, column=1)
+
 
 
 

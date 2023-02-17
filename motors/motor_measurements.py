@@ -7,7 +7,8 @@ File stores a bunch of hardcoded values related to the motors.
 measurements = {"ENC_M2_360_ROTATION": 145,
                 "ENC_M2_DEFAULT": 135,
                 "ENC_M2_STRIKE": 110,
-                "ENC_M1_DEFAULT": 667}
+                "ENC_M1_DEFAULT": 667,
+                "MM_TO_ENC_M1": 13}
 
 
 class MotorMeasurements(pydantic.BaseModel):
@@ -20,3 +21,5 @@ class MotorMeasurements(pydantic.BaseModel):
     enc_m2_default: int = measurements["ENC_M2_DEFAULT"]
     # M1 default encoder position such that goalie is centered with goal.
     enc_m1_default: int = measurements["ENC_M1_DEFAULT"]
+    # M1 conversion unit from mm to encoder position.
+    m1_mm_to_enc: float = measurements["MM_TO_ENC_M1"]
