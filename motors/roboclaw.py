@@ -87,6 +87,7 @@ class Roboclaw:
         GETPINFUNCTIONS = 75
         SETDEADBAND = 76
         GETDEADBAND = 77
+        READENCCOUNTERS = 78
         RESTOREDEFAULTS = 80
         GETTEMP = 82
         GETTEMP2 = 83
@@ -98,6 +99,7 @@ class Roboclaw:
         READNVM = 95
         SETCONFIG = 98
         GETCONFIG = 99
+        READSPEEDERRORLIMITS = 110
         SETM1MAXCURRENT = 133
         SETM2MAXCURRENT = 134
         GETM1MAXCURRENT = 135
@@ -697,6 +699,9 @@ class Roboclaw:
 
     def ReadEncM2(self, address):
         return self._read4_1(address, self.Cmd.GETM2ENC)
+
+    def ReadEncoderCounters(self, address):
+        return self._read_n(address, self.Cmd.READENCCOUNTERS, 2)
 
     def ReadSpeedM1(self, address):
         return self._read4_1(address, self.Cmd.GETM1SPEED)
