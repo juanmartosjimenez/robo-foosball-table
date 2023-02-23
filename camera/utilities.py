@@ -3,6 +3,7 @@ import time
 import numpy as np
 import pyrealsense2 as rs
 
+
 def rgb_to_hsv(rgb):
     rgb = np.uint8([[[rgb[0], rgb[1], rgb[2]]]])
     hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
@@ -53,3 +54,10 @@ def read_color_frame(pipe):
             continue
         else:
             return np.asanyarray(color_frame.get_data())
+
+
+def get_screenshot():
+    pipe = start_pipe()
+    color_frame = read_color_frame(pipe)
+    pipe.stop()
+    return color_frame
