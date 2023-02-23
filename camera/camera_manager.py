@@ -6,11 +6,8 @@ from typing import Optional
 import cv2
 import imutils
 import numpy as np
-from aruco import detect_markers, get_pixel_to_mm
+from camera.aruco import detect_markers, get_pixel_to_mm
 import pyrealsense2 as rs
-
-from camera.ball_tracking_with_trajectory import ball_tracking
-
 
 class CameraManager:
     """
@@ -40,7 +37,6 @@ class CameraManager:
                     print("Unknown event: " + event)
             except queue.Empty:
                 pass
-
 
     def start_ball_tracking(self):
         # Returns an array of a given length containing the most recent center points,
@@ -139,7 +135,7 @@ class CameraManager:
                 else:
                     xAvg = 0
                 endX = pts[-1][1] + (xAvg * (600 - pts[-1][0]))
-                self.queue_from_camera.put(("goalie_ball_pos", self.convert_pixels_to_mm(endX,0)[0]))
+                self.queue_from_camera.put(("goalie_ball_pos", self.convert_pixels_to_mm(endX, 0)[0]))
 
     def __start_pipe(self):
         """

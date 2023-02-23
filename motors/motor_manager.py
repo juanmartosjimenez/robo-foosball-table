@@ -1,9 +1,9 @@
 import queue
 import time
 
-from roboclaw import Roboclaw
+from motors.roboclaw import Roboclaw
 import serial.tools.list_ports
-from motor_measurements import MotorMeasurements
+from motors.motor_measurements import MotorMeasurements
 
 
 class MotorManager:
@@ -28,7 +28,9 @@ class MotorManager:
         Event loop for the motor manager.
         :return:
         """
+        start_time = time.time()
         while True:
+            print("motor_manager_event_loop")
             try:
                 data = queue_to_motors.get_nowait()
                 event = data[0]
@@ -41,12 +43,17 @@ class MotorManager:
                 elif event == 'stop':
                     self.stop()
                 elif event == 'read_encoders':
-                    queue_from_motors.put_nowait(("read_encoders", self.read_encoders()))
+                    encoder_val = self.read_encoders()
+                    queue_from_motors.put_nowait(("read_encoders", {"encoders": encoder_val, "mm_m1": self._encoder_to_mm_m1(encoder_val[0]), "degrees_m2": self._encoder_to_degrees_m2(encoder_val[0])}))
                 elif event == 'strike_m2':
                     self.strike_m2()
                 else:
                     print("Unknown event: " + event)
             except queue.Empty:
+                if start_time > 0.5:
+                    # Every 0.5 seconds, read the encoders.
+                    queue_to_motors.put_nowait(("read_encoders", None))
+                    start_time = time.time()
                 pass
 
     def stop_m1(self):
@@ -222,6 +229,14 @@ class MotorManager:
         :return:
         """
         return round(encoder / self.measurements.m1_mm_to_enc, 2)
+
+    def _encoder_to_degrees_m2(self, encoder: int) -> float:
+        """
+        Converts encoder position to degrees.
+        :param encoder:
+        :return:
+        """
+        return round(encoder % self.measurements.enc_m2_360_rotation, 2)
 
     def move_to_mm_m1(self, mm):
         """
