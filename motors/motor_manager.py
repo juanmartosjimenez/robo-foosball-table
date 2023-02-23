@@ -1,3 +1,4 @@
+import queue
 import time
 
 from roboclaw import Roboclaw
@@ -5,8 +6,8 @@ import serial.tools.list_ports
 from motor_measurements import MotorMeasurements
 
 
-class HardwareManager:
-    def __init__(self, serial_port="COM5"):
+class MotorManager:
+    def __init__(self, serial_port: str ="COM5"):
         # Since only one roboclaw is being used, default address is 0x80.
         self.address = 0x80
         # Initialize roboclaw object.
@@ -21,6 +22,32 @@ class HardwareManager:
         self.right_limit = 1600
         # Initialize motor measurements.
         self.measurements = MotorMeasurements()
+
+    def event_loop(self, queue_to_motors, queue_from_motors):
+        """
+        Event loop for the motor manager.
+        :return:
+        """
+        while True:
+            try:
+                data = queue_to_motors.get_nowait()
+                event = data[0]
+                if event == 'home_m1':
+                    self.home_m1()
+                elif event == 'home_m2':
+                    self.home_m2()
+                elif event == 'move_to_mm_m1':
+                    self.move_to_mm_m1(data[1])
+                elif event == 'stop':
+                    self.stop()
+                elif event == 'read_encoders':
+                    queue_from_motors.put_nowait(("read_encoders", self.read_encoders()))
+                elif event == 'strike_m2':
+                    self.strike_m2()
+                else:
+                    print("Unknown event: " + event)
+            except queue.Empty:
+                pass
 
     def stop_m1(self):
         """
@@ -67,7 +94,8 @@ class HardwareManager:
         """
         self.roboclaw.SetEncM2(self.address, 0)
 
-    def read_serial_ports(self):
+    @staticmethod
+    def read_serial_ports():
         """
         Reads connected serial ports, useful to identify what port the roboclaw is connected to.
         :return:
@@ -202,10 +230,3 @@ class HardwareManager:
         :return:
         """
         self.move_to_pos_m1(self._mm_to_encoder_m1(mm))
-
-
-
-
-if __name__ == "__main__":
-    hardware_manager = HardwareManager()
-    hardware_manager.home_m1()

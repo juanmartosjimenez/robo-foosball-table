@@ -1,12 +1,12 @@
 import tkinter as tk
 
-from motors.hardware_manager import HardwareManager
+from motors.motor_manager import MotorManager
 
 
 class MotorGUI(tk.Frame):
     def __init__(self):
         super().__init__()
-        self.hardware_manager = HardwareManager()
+        self.hardware_manager = MotorManager()
         self.home_m1_button = tk.Button(self, text="Home M1", command=lambda: self.hardware_manager.home_m1())
         self.home_m1_button.grid(row=0, column=0)
         self.home_m2_button = tk.Button(self, text="Home M2", command=lambda: self.hardware_manager.home_m2())

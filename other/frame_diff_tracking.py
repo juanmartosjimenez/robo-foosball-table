@@ -2,15 +2,28 @@ import cv2
 import time
 import numpy as np
 import pyrealsense2 as rs
-from utilities import get_hsv_range, start_pipe
 import imutils
+
+from camera.camera_manager import CameraManager
 
 """
 Tracks objects using the difference in between a "standard" frame and the current frame.
 Any differences that exceed a certain threshold are highlighted using contours.
 """
 
-pipe = start_pipe()
+camera_manager = CameraManager()
+pipe = camera_manager.pipe
+def rgb_to_hsv(rgb):
+    rgb = np.uint8([[[rgb[0], rgb[1], rgb[2]]]])
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    return hsv[0][0]
+
+
+def get_hsv_range(rgb: tuple) -> tuple[np.ndarray, np.ndarray]:
+    target_object_rgb = rgb_to_hsv(rgb)
+    lower_hsv = np.array((target_object_rgb[0] - 40, target_object_rgb[1] - 40, target_object_rgb[2] - 20))
+    higher_hsv = np.array((target_object_rgb[0] + 40, target_object_rgb[1] + 40, target_object_rgb[2] + 20))
+    return lower_hsv, higher_hsv
 
 
 def get_calibration_frame():
