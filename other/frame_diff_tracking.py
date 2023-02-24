@@ -13,16 +13,13 @@ Any differences that exceed a certain threshold are highlighted using contours.
 
 camera_manager = CameraManager()
 pipe = camera_manager.pipe
-def rgb_to_hsv(rgb):
-    rgb = np.uint8([[[rgb[0], rgb[1], rgb[2]]]])
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
-    return hsv[0][0]
+
 
 
 def get_hsv_range(rgb: tuple) -> tuple[np.ndarray, np.ndarray]:
     target_object_rgb = rgb_to_hsv(rgb)
-    lower_hsv = np.array((target_object_rgb[0] - 40, target_object_rgb[1] - 40, target_object_rgb[2] - 20))
-    higher_hsv = np.array((target_object_rgb[0] + 40, target_object_rgb[1] + 40, target_object_rgb[2] + 20))
+    lower_hsv = np.array((target_object_rgb[0] - 50, target_object_rgb[1] - 50, target_object_rgb[2] - 50))
+    higher_hsv = np.array((target_object_rgb[0] + 50, target_object_rgb[1] + 50, target_object_rgb[2] + 50))
     return lower_hsv, higher_hsv
 
 

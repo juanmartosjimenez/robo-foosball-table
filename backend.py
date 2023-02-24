@@ -4,11 +4,13 @@ from motors.motor_manager import MotorManager
 from multiprocessing import Process, Queue
 from typing import TYPE_CHECKING, Optional
 import traceback
+import threading
 
 if TYPE_CHECKING:
     from frontend import Frontend
 
 from subscriber_publisher import Publisher
+
 
 
 class Backend(object):
@@ -44,7 +46,7 @@ class Backend(object):
             event = queue_data[0]
             data = queue_data[1]
             if event == "read_encoders":
-                self.publisher.publish("goalie_m1_encoders", data)
+                self.publisher.publish("read_encoders", data)
         except queue.Empty:
             return
 
@@ -55,8 +57,9 @@ class Backend(object):
             data = queue_data[1]
 
             if event == 'ball_pos':
-                print(data)
+                self.publisher.publish("ball_pos", data)
             elif event == 'goalie_ball_pos':
+                self.publisher.publish("goalie_ball_pos", data)
                 self.queue_to_motors.put_nowait(("move_to_mm_m1", data))
             else:
                 print("Unknown event: " + event)
@@ -64,7 +67,6 @@ class Backend(object):
             return
 
     def event_loop(self):
-        print("backend_event_loop")
         # Get data from camera
         self._read_camera()
         # Get data from motors
@@ -72,13 +74,12 @@ class Backend(object):
 
     def start_camera_event_loop(self):
         print("start_camera_event_loop")
-        self.active_threads.append(Process(target=self.camera_manager.event_loop, args=(
-        {"queue_to_camera": self.queue_to_camera, "queue_from_camera": self.queue_from_camera})))
+        self.active_threads.append(threading.Thread(target=self.camera_manager.event_loop, args=(self.queue_to_camera, self.queue_from_camera)).start())
 
     def start_motors_event_loop(self):
         print("start_motors_event_loop")
-        self.active_threads.append(Process(target=self.motor_manager.event_loop, args=(
-        {"queue_to_motors": self.queue_to_motors, "queue_from_motors": self.queue_from_motors})))
+        self.active_threads.append(threading.Thread(target=self.motor_manager.event_loop, args=(self.queue_to_motors,  self.queue_from_motors)).start())
+
 
     def home(self):
         self.queue_to_motors.put_nowait(("home_m1", None))

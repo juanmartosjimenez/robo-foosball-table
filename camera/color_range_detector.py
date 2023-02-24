@@ -30,7 +30,7 @@ def setup_trackbars(range_filter):
 
 def get_arguments():
     ap = argparse.ArgumentParser()
-    ap.add_argument('-f', '--filter', required=True,
+    ap.add_argument('-f', '--filter', required=False,
                     help='Range filter. RGB or HSV')
     ap.add_argument('-i', '--image', required=False,
                     help='Path to the image')
@@ -41,11 +41,6 @@ def get_arguments():
                     action='store_true')
     args = vars(ap.parse_args())
 
-    if not xor(bool(args['image']), bool(args['webcam'])):
-        ap.error("Please specify only one image source")
-
-    if not args['filter'].upper() in ['RGB', 'HSV']:
-        ap.error("Please speciy a correct filter.")
 
     return args
 
@@ -64,7 +59,9 @@ def get_trackbar_values(range_filter):
 def main():
     args = get_arguments()
 
-    range_filter = args['filter'].upper()
+    range_filter = "HSV"
+    args["image"] = False
+    args["webcam"] = True
 
     if args['image']:
         image = cv2.imread(args['image'])

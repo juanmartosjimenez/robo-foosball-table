@@ -30,7 +30,7 @@ class MotorManager:
         """
         start_time = time.time()
         while True:
-            print("motor_manager_event_loop")
+            time.sleep(0.01)
             try:
                 data = queue_to_motors.get_nowait()
                 event = data[0]
@@ -50,7 +50,7 @@ class MotorManager:
                 else:
                     print("Unknown event: " + event)
             except queue.Empty:
-                if start_time > 0.5:
+                if time.time() - start_time > 1:
                     # Every 0.5 seconds, read the encoders.
                     queue_to_motors.put_nowait(("read_encoders", None))
                     start_time = time.time()
@@ -161,9 +161,9 @@ class MotorManager:
         :param pos:
         :return:
         """
-        if pos > self.right_limit:
-            raise ValueError("Position out of range")
-        self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 16000, 2000, 16000, pos, 1)
+        #if pos > self.right_limit:
+            #raise ValueError("Position out of range")
+        self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 16000, 4000, 16000, pos, 1)
 
     def move_to_default_pos_m1(self):
         """
@@ -244,4 +244,5 @@ class MotorManager:
         :param mm:
         :return:
         """
+        center_player_mm = 240
         self.move_to_pos_m1(self._mm_to_encoder_m1(mm))
