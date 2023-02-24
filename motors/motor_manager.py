@@ -4,10 +4,11 @@ import time
 from motors.roboclaw import Roboclaw
 import serial.tools.list_ports
 from motors.motor_measurements import MotorMeasurements
+from other.events import MotorEvent
 
 
 class MotorManager:
-    def __init__(self, serial_port: str ="COM5"):
+    def __init__(self, serial_port: str = "COM5"):
         # Since only one roboclaw is being used, default address is 0x80.
         self.address = 0x80
         # Initialize roboclaw object.
@@ -34,25 +35,31 @@ class MotorManager:
             try:
                 data = queue_to_motors.get_nowait()
                 event = data[0]
-                if event == 'home_m1':
+                if event == MotorEvent.HOME_M1:
                     self.home_m1()
-                elif event == 'home_m2':
+                elif event == MotorEvent.HOME_M2:
                     self.home_m2()
-                elif event == 'move_to_mm_m1':
+                elif event == MotorEvent.MOVE_TO_MM_M1:
                     self.move_to_mm_m1(data[1])
-                elif event == 'stop':
+                elif event == MotorEvent.STOP:
                     self.stop()
-                elif event == 'read_encoders':
+                elif event == MotorEvent.ENCODER_VALS:
                     encoder_val = self.read_encoders()
-                    queue_from_motors.put_nowait(("read_encoders", {"encoders": encoder_val, "mm_m1": self._encoder_to_mm_m1(encoder_val[0]), "degrees_m2": self._encoder_to_degrees_m2(encoder_val[0])}))
-                elif event == 'strike_m2':
-                    self.strike_m2()
+                    queue_from_motors.put_nowait(("read_encoders", {"encoders": encoder_val,
+                                                                    "mm_m1": self._encoder_to_mm_m1(encoder_val[0]),
+                                                                    "degrees_m2": self._encoder_to_degrees_m2(
+                                                                        encoder_val[0])}))
+                elif event == MotorEvent.STRIKE:
+                    self.strike()
+                elif event == MotorEvent.MOVE_TO_START_POS:
+                    self.move_to_default_pos_m2()
+                    self.move_to_default_pos_m1()
                 else:
-                    print("Unknown event: " + event)
+                    raise ValueError("Unknown event: " + event)
             except queue.Empty:
                 if time.time() - start_time > 1:
                     # Every 0.5 seconds, read the encoders.
-                    queue_to_motors.put_nowait(("read_encoders", None))
+                    queue_to_motors.put_nowait((MotorEvent.ENCODER_VALS, None))
                     start_time = time.time()
                 pass
 
@@ -161,9 +168,9 @@ class MotorManager:
         :param pos:
         :return:
         """
-        #if pos > self.right_limit:
-            #raise ValueError("Position out of range")
-        self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 16000, 4000, 16000, pos, 1)
+        # if pos > self.right_limit:
+        # raise ValueError("Position out of range")
+        self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 16000, 2000, 16000, pos, 1)
 
     def move_to_default_pos_m1(self):
         """
@@ -188,7 +195,7 @@ class MotorManager:
         """
         self.move_to_pos_m2(self.measurements.enc_m2_default)
 
-    def strike_m2(self):
+    def strike(self):
         """
         Strike the ball with the m2 motor.
         :return:
@@ -201,13 +208,14 @@ class MotorManager:
             nearest_0 = self.measurements.enc_m2_360_rotation - nearest_0
         else:
             nearest_0 = -nearest_0
-        #self.move_to_pos_m2(nearest_0 + self.measurements.enc_m2_strike, accell=32000, speed=4000, deccell=32000)
+        # self.move_to_pos_m2(nearest_0 + self.measurements.enc_m2_strike, accell=32000, speed=4000, deccell=32000)
         self.move_backward_m2(35)
 
         # Moves the player to strike end position.
         while True:
             # Don't wait for motors to reach exactly the strike start position because it will be too slow.
-            if nearest_0 + self.measurements.enc_m2_strike -10 <= self.roboclaw.ReadEncM2(self.address)[1] <= nearest_0 + self.measurements.enc_m2_strike:
+            if nearest_0 + self.measurements.enc_m2_strike - 10 <= self.roboclaw.ReadEncM2(self.address)[
+                1] <= nearest_0 + self.measurements.enc_m2_strike:
                 break
         self.move_forward_m2(120)
         time.sleep(0.09)

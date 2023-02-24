@@ -1,10 +1,12 @@
 import queue
 from camera.camera_manager import CameraManager
 from motors.motor_manager import MotorManager
-from multiprocessing import Process, Queue
+from multiprocessing import Queue
 from typing import TYPE_CHECKING, Optional
 import traceback
 import threading
+
+from other.events import FrontendEvent, MotorEvent, CameraEvent
 
 if TYPE_CHECKING:
     from frontend import Frontend
@@ -20,14 +22,14 @@ class Backend(object):
         self.queue_to_camera = Queue()
         self.queue_to_motors = Queue()
         self.frontend: Optional[Frontend] = None
-        self.publisher = Publisher(events=["read_encoders", "ball_pos", "goalie_ball_pos", "error"])
+        self.publisher = Publisher(events=[FrontendEvent.ENCODER_VALS, FrontendEvent.CURRENT_BALL_POS, FrontendEvent.PREDICTED_BALL_POS, FrontendEvent.ERROR])
         self.active_threads = []
 
         try:
             self.motor_manager = MotorManager()
         except Exception as e:
             print(traceback.format_exc())
-            self.publisher.publish("error", e)
+            self.publisher.publish(FrontendEvent.ERROR, e)
             return
         self.start_motors_event_loop()
         try:
@@ -35,7 +37,7 @@ class Backend(object):
         except Exception as e:
             print(traceback.format_exc())
             print(e)
-            self.publisher.publish("error", e)
+            self.publisher.publish(FrontendEvent.ERROR, e)
             return
         self.start_camera_event_loop()
 
@@ -45,8 +47,8 @@ class Backend(object):
             queue_data = self.queue_from_motors.get_nowait()
             event = queue_data[0]
             data = queue_data[1]
-            if event == "read_encoders":
-                self.publisher.publish("read_encoders", data)
+            if event == MotorEvent.ENCODER_VALS:
+                self.publisher.publish(FrontendEvent.ENCODER_VALS, data)
         except queue.Empty:
             return
 
@@ -56,11 +58,11 @@ class Backend(object):
             event = queue_data[0]
             data = queue_data[1]
 
-            if event == 'ball_pos':
-                self.publisher.publish("ball_pos", data)
-            elif event == 'goalie_ball_pos':
-                self.publisher.publish("goalie_ball_pos", data)
-                self.queue_to_motors.put_nowait(("move_to_mm_m1", data))
+            if event == CameraEvent.CURRENT_BALL_POS:
+                self.publisher.publish(FrontendEvent.CURRENT_BALL_POS, data)
+            elif event == CameraEvent.PREDICTED_BALL_POS:
+                self.publisher.publish(FrontendEvent.PREDICTED_BALL_POS, data)
+                self.queue_to_motors.put_nowait((MotorEvent.MOVE_TO_MM_M1, data["mm"][0]))
             else:
                 print("Unknown event: " + event)
         except queue.Empty:
@@ -73,19 +75,20 @@ class Backend(object):
         self._read_motors()
 
     def start_camera_event_loop(self):
-        print("start_camera_event_loop")
         self.active_threads.append(threading.Thread(target=self.camera_manager.event_loop, args=(self.queue_to_camera, self.queue_from_camera)).start())
 
     def start_motors_event_loop(self):
-        print("start_motors_event_loop")
         self.active_threads.append(threading.Thread(target=self.motor_manager.event_loop, args=(self.queue_to_motors,  self.queue_from_motors)).start())
 
 
     def home(self):
-        self.queue_to_motors.put_nowait(("home_m1", None))
-        self.queue_to_motors.put_nowait(("home_m2", None))
+        self.queue_to_motors.put_nowait((MotorEvent.HOME_M1, None))
+        self.queue_to_motors.put_nowait((MotorEvent.HOME_M2, None))
 
     def start_ball_tracking(self):
-        self.queue_to_camera.put_nowait(("start_ball_tracking", None))
+        self.queue_to_camera.put_nowait((CameraEvent.START_BALL_TRACKING, None))
+
+    def move_to_default(self):
+        self.queue_to_motors.put_nowait((MotorEvent.MOVE_TO_START_POS, None))
 
 

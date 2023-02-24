@@ -8,8 +8,12 @@ from typing import Optional
 import cv2
 import imutils
 import numpy as np
-from camera.aruco import detect_markers, get_pixel_to_mm
+from camera.aruco import detect_markers, get_pixel_to_mm, draw_markers
 import pyrealsense2 as rs
+
+from camera.camera_measurements import CameraMeasurements
+from other.events import CameraEvent
+
 
 class CameraManager:
     """
@@ -20,12 +24,21 @@ class CameraManager:
         # Start the camera pipe
         self.pipe: Optional[rs.pipeline] = None
         self.__start_pipe()
+        self.camera_measurements = CameraMeasurements()
         # Detect aruco markers
         rgb_frame = self.read_color_frame()
         # Detect aruco markers
         self.corners, self.ids, self.rejected = detect_markers(rgb_frame)
         # Calculate ratio of pixels to mm
         self.pixel_to_mm_x, self.pixel_to_mm_y = get_pixel_to_mm(self.corners, self.ids)
+
+    def draw_aruco_markers(self):
+        # Draw the aruco markers
+        rgb_frame = self.read_color_frame()
+        corners, ids, rejected = detect_markers(rgb_frame)
+        draw_markers(ids, corners, rgb_frame)
+        cv2.imshow("aruco", rgb_frame)
+        cv2.waitKey(1)
 
     def event_loop(self, queue_to_camera: multiprocessing.Queue, queue_from_camera: multiprocessing.Queue):
         self.queue_to_camera = queue_to_camera
@@ -35,11 +48,11 @@ class CameraManager:
             try:
                 data = queue_to_camera.get_nowait()
                 event = data[0]
-                if event == 'start_ball_tracking':
+                if event == CameraEvent.START_BALL_TRACKING:
                     queue_from_camera.put(("message", "Ball tracking started"))
                     self.start_ball_tracking()
                 else:
-                    print("Unknown event: " + event)
+                    raise ValueError(f"Unknown event {str(event)}")
             except queue.Empty:
                 pass
 
@@ -110,8 +123,8 @@ class CameraManager:
                 cX = int(M["m01"] / M["m00"])
             else:
                 cX, cY = 0, 0
-            self.queue_from_camera.put(("ball_pos", self.convert_pixels_to_mm(cX, cY)))
-            self.queue_from_camera.put(("goalie_ball_pos", self.convert_pixels_to_mm(cX, cY)[0])) #TODO delete
+            self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (cX, cY), "mm": self.convert_pixels_to_mm_playing_field(cX, cY)}))
+            self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (cX, cY), "mm": self.convert_pixels_to_mm_playing_field(cX, cY)})) #TODO Delete
 
             # Draw the ball
             cv2.drawContours(frame, [c], -1, (0, 255, 0), 2)
@@ -199,7 +212,20 @@ class CameraManager:
 
     def convert_pixels_to_mm_playing_field(self, x, y):
         # Get mm coords relative to the foosball table boundaries.
+        # Assume that aruco marker is perfectly aligned with corners of the table. TODO fix this assumption, place
+        # aruco marker in the middle of the table and use this value to calculate offset.
+        bottom_left_x = 0
+        bottom_right_y = 0
+        for ii, id in enumerate(self.ids):
+            if id[0] == self.camera_measurements.id_aruco_bottom_left:
+                # Get corner pixel value
+                bottom_left_x = self.corners[ii][:, 0][0][0]
+            if id[0] == self.camera_measurements.id_aruco_bottom_right:
+                bottom_right_y = self.corners[ii][:, 0][0][1]
 
-        out = round((540 - x) / self.pixel_to_mm_x, 2), round(y / self.pixel_to_mm_y, 2)
+        out = round((540 - x - bottom_left_x) / self.pixel_to_mm_x, 2), round((y - bottom_right_y) / self.pixel_to_mm_y, 2)
         return out
 
+if __name__ == "__main__":
+    camera_manager = CameraManager()
+    camera_manager.draw_aruco_markers()

@@ -1,19 +1,20 @@
 from typing import List, Callable
 
+from other.events import FrontendEvent
+
 
 class Publisher:
-    def __init__(self, events: List[str]):
+    def __init__(self, events: List[FrontendEvent]):
         self.subscribers: List = []
         self.events = events
 
-
-    def add_subscriber(self, event, subscriber: Callable):
+    def add_subscriber(self, event: FrontendEvent, subscriber: Callable):
         self.subscribers.append((event, subscriber))
 
     def unsubscribe(self, subscriber: Callable):
         self.subscribers.remove(subscriber)
 
-    def publish(self, event, data):
+    def publish(self, event: FrontendEvent, data):
         for subscriber in self.subscribers:
             if subscriber[0] == event:
                 try:

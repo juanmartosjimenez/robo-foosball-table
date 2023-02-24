@@ -33,7 +33,7 @@ class MotorGUI(tk.Frame):
         self.move_to_pos_m2_button.grid(row=4, column=1)
         self.move_to_default_pos_m2_button = tk.Button(self, text="Move to default position", command=lambda: self.hardware_manager.move_to_default_pos_m2())
         self.move_to_default_pos_m2_button.grid(row=4, column=2)
-        self.strike_button = tk.Button(self, text="Strike", command=lambda: self.hardware_manager.strike_m2())
+        self.strike_button = tk.Button(self, text="Strike", command=lambda: self.hardware_manager.strike())
         self.strike_button.grid(row=5, column=0)
         self.move_to_mm_m1_entry = tk.Entry(self, textvariable=tk.StringVar(self, value="0"))
         self.move_to_mm_m1_entry.grid(row=6, column=0)

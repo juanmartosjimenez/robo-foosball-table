@@ -105,14 +105,17 @@ def get_pixel_to_mm(corners, ids):
     x_diff = (bottom_right - bottom_left)[0, 0]
     y_diff = (bottom_left - top_left)[0, 1]
     # Have to take into account the white padding surrounding the marker
-    x_length_mm = camera_measurements.mm_playing_field_length
-    y_length_mm = camera_measurements.mm_playing_field_width
-    x_length_mm += camera_measurements.mm_aruco_length
-    y_length_mm -= camera_measurements.mm_aruco_length
+    x_length_mm = camera_measurements.mm_playing_field_width
+    y_length_mm = camera_measurements.mm_playing_field_length
+    x_length_mm -= camera_measurements.mm_aruco_padding*2
+    y_length_mm += camera_measurements.mm_aruco_padding*2
     pixel_to_mm_x = x_length_mm / x_diff
     pixel_to_mm_y = y_length_mm / y_diff
+    print("Pixel to mm x: {}".format(pixel_to_mm_x))
+    print("Pixel to mm y: {}".format(pixel_to_mm_y))
     return pixel_to_mm_x, pixel_to_mm_y
 
 
 if __name__ == "__main__":
     generate_markers()
+
