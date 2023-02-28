@@ -13,7 +13,7 @@ def generate_markers():
     """
     aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_6X6_250)
     for ii in range(6):
-        image_marker = cv.aruco.generateImageMarker(aruco_dict, ii + 1, 400)
+        image_marker = cv.aruco.generateImageMarker(aruco_dict, ii + 1, 260)
         cv.imwrite(r"ArUcoTags/Marker{}.png".format(ii + 1), image_marker)
 
 
@@ -48,7 +48,7 @@ def pose_estimation(ids, corners, rgb_frame, intrinsics):
     # Top left 2
     # Bottom right 3
     # Bottom left 4
-    print(np.linalg.norm(vecs[4][1] - vecs[3][1]))
+    print(np.linalg.norm(vecs[camera_measurements.id_aruco_bottom_right][1] - vecs[camera_measurements.id_aruco_bottom_left][1]))
 
 
 def detect_markers(rgb_frame: np.array) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -65,19 +65,24 @@ def detect_markers(rgb_frame: np.array) -> tuple[np.ndarray, np.ndarray, np.ndar
     # refactor corners area to so that it is easier to use
     tmp_corners = np.copy(corners)
 
-    stack = [1, 2, 3, 4]
+    stack = [camera_measurements.id_aruco_playing_field_top, camera_measurements.id_aruco_playing_field_bottom, camera_measurements.id_aruco_bottom_left, camera_measurements.id_aruco_bottom_right, camera_measurements.id_aruco_top_right, camera_measurements.id_aruco_top_left]
     for ii, id in enumerate(ids):
         if ids[ii] == camera_measurements.id_aruco_bottom_left:
             tmp_corners[ii] = np.roll(tmp_corners[ii], 1, axis=1)
             stack.remove(camera_measurements.id_aruco_bottom_left)
         elif ids[ii] == camera_measurements.id_aruco_top_left:
-            tmp_corners[ii] = np.roll(tmp_corners[ii], 2, axis=1)
+            tmp_corners[ii] = np.roll(tmp_corners[ii], 3, axis=1)
             stack.remove(camera_measurements.id_aruco_top_left)
         elif ids[ii] == camera_measurements.id_aruco_top_right:
             tmp_corners[ii] = np.roll(tmp_corners[ii], 3, axis=1)
             stack.remove(camera_measurements.id_aruco_top_right)
         elif ids[ii] == camera_measurements.id_aruco_bottom_right:
+            tmp_corners[ii] = np.roll(tmp_corners[ii], 2, axis=1)
             stack.remove(camera_measurements.id_aruco_bottom_right)
+        elif ids[ii] == camera_measurements.id_aruco_playing_field_top:
+            stack.remove(camera_measurements.id_aruco_playing_field_top)
+        elif ids[ii] == camera_measurements.id_aruco_playing_field_bottom:
+            stack.remove(camera_measurements.id_aruco_playing_field_bottom)
 
     if stack:
         raise ValueError("Missing ArUco markers: {}".format(stack))
@@ -88,14 +93,14 @@ def detect_markers(rgb_frame: np.array) -> tuple[np.ndarray, np.ndarray, np.ndar
 
 def get_pixel_to_mm(corners, ids):
     top_right = None
-    top_left = None
+    playing_field_bottom = None
     bottom_right = None
     bottom_left = None
     for ii, id in enumerate(ids):
         if ids[ii] == camera_measurements.id_aruco_bottom_left:
             bottom_left = corners[ii][:, 0]
         elif ids[ii] == camera_measurements.id_aruco_top_left:
-            top_left = corners[ii][0]
+            playing_field = corners[ii][0]
         elif ids[ii] == camera_measurements.id_aruco_top_right:
             top_right = corners[ii][0]
         elif ids[ii] == camera_measurements.id_aruco_bottom_right:
@@ -103,12 +108,12 @@ def get_pixel_to_mm(corners, ids):
 
     # Calculate the number of pixels from the corners of the ArUco markers.
     x_diff = (bottom_right - bottom_left)[0, 0]
-    y_diff = (bottom_left - top_left)[0, 1]
+    y_diff = (bottom_right - top_right)[0, 1]
     # Have to take into account the white padding surrounding the marker
-    x_length_mm = camera_measurements.mm_playing_field_width
-    y_length_mm = camera_measurements.mm_playing_field_length
-    x_length_mm -= camera_measurements.mm_aruco_padding*2
-    y_length_mm += camera_measurements.mm_aruco_padding*2
+    x_length_mm = camera_measurements.mm_x_corner_to_corner
+    y_length_mm = camera_measurements.mm_y_corner_to_corner
+    # x_length_mm -= camera_measurements.mm_aruco_padding*2
+    # y_length_mm += camera_measurements.mm_aruco_padding*2
     pixel_to_mm_x = x_length_mm / x_diff
     pixel_to_mm_y = y_length_mm / y_diff
     print("Pixel to mm x: {}".format(pixel_to_mm_x))
@@ -118,4 +123,3 @@ def get_pixel_to_mm(corners, ids):
 
 if __name__ == "__main__":
     generate_markers()
-
