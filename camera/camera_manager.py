@@ -60,11 +60,13 @@ class CameraManager:
         rgb = np.uint8([[[rgb[0], rgb[1], rgb[2]]]])
         hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
         return hsv[0][0]
+    
     def get_hsv_range(self, rgb: tuple) -> tuple[np.ndarray, np.ndarray]:
         target_object_rgb = self.rgb_to_hsv(rgb)
         lower_hsv = np.array((target_object_rgb[0] - 50, target_object_rgb[1] - 50, target_object_rgb[2] - 50))
         higher_hsv = np.array((target_object_rgb[0] + 50, target_object_rgb[1] + 50, target_object_rgb[2] + 50))
         return lower_hsv, higher_hsv
+    
     def start_ball_tracking(self):
         # Returns an array of a given length containing the most recent center points,
         # or "None" if there are less stored points than the given number
@@ -74,12 +76,13 @@ class CameraManager:
                 return None
             else:
                 for i in range(num):
-                    lastPts.append(pts[len(pts) - (1 + (num - i))])
+                    lastPts.append(pts[i])
                 return lastPts
 
         # Define the lower and upper HSV boundaries of the foosball and initialize
         # the list of center points
-        greenLower, greenUpper = self.get_hsv_range((235, 100, 48))
+        colorMaskLower = (0, 109, 179)
+        colorMaskUpper = (200, 198, 255)
         pts = deque(maxlen=64)
         draw = True
 
@@ -93,56 +96,73 @@ class CameraManager:
             frame = self.read_color_frame()
 
             # Resize and blur the frame, then convert to HSV
-            # Why do we resize the frame?
-            # frame = imutils.resize(frame, width=600)
-            blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+            frame = imutils.resize(frame, width=600)
+            blurred = cv2.GaussianBlur(frame, (11, 11), 0)
             hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
             # Construct color mask, then erode and dilate to clean up extraneous
             # contours
-            mask = cv2.inRange(hsv, greenLower, greenUpper)
-            # mask = cv2.erode(mask, None, iterations=2)
+            mask = cv2.inRange(hsv, colorMaskLower, colorMaskUpper)
+            #mask = cv2.erode(mask, None, iterations=2)
             mask = cv2.dilate(mask, None, iterations=2)
 
             # Find all contours in the mask and initialize the center
             cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cnts = imutils.grab_contours(cnts)
+            
+            # Draw lines representing the AOI
+            cv2.line(frame, (120, 55), (800, 55), (0, 0, 255), 1)
+            cv2.line(frame, (120, 55), (120, 450), (0, 0, 255), 1)
+            cv2.line(frame, (120, 450), (800, 450), (0, 0, 255), 1)
+            cv2.line(frame, (800, 450), (800, 55), (0, 0, 255), 1)
 
-            cnts = cnts[0] if len(cnts) == 2 else cnts[1]
-            if not cnts:
-                cv2.imshow("Frame", frame)
-                key = cv2.waitKey(1)
-                continue
-
-            # Find the largest contour
-            c = max(cnts, key=cv2.contourArea)
-
-            # Find the center of the ball
-            M = cv2.moments(c)
-            if M["m00"] != 0:
-                cY = int(M["m10"] / M["m00"])
-                cX = int(M["m01"] / M["m00"])
+            # Initialize the best contour to none, then search for the best one
+            contoursInAOI = []
+            foundContour = False
+            bestCenter = None
+            if len(cnts) > 0:
+                bestContour = None
+                
+                # Remove all contours not in area of interest
+                for c in cnts:
+                    ((x, y), radius) = cv2.minEnclosingCircle(c)
+                    M = cv2.moments(c)
+                    center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+                    if center[0] > 120 and center[0] < 800 and center[1] > 55 and center[1] < 450:
+                        foundContour = True
+                        contoursInAOI.append(c)
+                        if (bestContour is None or cv2.contourArea(bestContour) <= cv2.contourArea(c)) and cv2.contourArea(c) < 550:
+                            bestContour = c
+                            bestCenter = center
+                
+                # Draw an outline on all of the contours in the AOI
+                cv2.drawContours(frame, contoursInAOI, -1, (0, 255, 0), 3)
+                
+                if foundContour:
+                    print(bestCenter)
+                else:
+                    center = None
+                    print("No Ball Found")
             else:
-                cX, cY = 0, 0
-            self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (cX, cY), "mm": self.convert_pixels_to_mm_playing_field(cX, cY)}))
-            self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (cX, cY), "mm": self.convert_pixels_to_mm_playing_field(cX, cY)})) #TODO Delete
+                print("No Contours Found")
 
-            # Draw the ball
-            cv2.drawContours(frame, [c], -1, (0, 255, 0), 2)
-            cv2.circle(frame, (cX, cY), 5, (255, 0, 0), -1)
-
-            # Display the result
-            cv2.imshow("Frame", frame)
-            key = cv2.waitKey(1)
-            continue
+            # Put current ball position
+            self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (center[0], center[1]), "mm": self.convert_pixels_to_mm_playing_field(center[0], center[1])}))
 
             # Update the list of centers, removing the oldest one every 3 frames if
             # there are more than 10 stored
-            if center:
-                pts.appendleft(center)
+            if bestCenter:
+                pts.appendleft(bestCenter)
             if frameNum == 3:
                 if len(pts) > 10:
                     pts.pop()
                 frameNum = 0
+            
+            # Visually connect all the stored center points with lines
+            for i in range(1, len(pts)):
+                thickness = int(np.sqrt(64 / float(i + 1)) * 2.5)
+                if draw:
+                    cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
 
             # Calculate the average change in x per change in y in order to predict
             # the ball's path
@@ -152,18 +172,25 @@ class CameraManager:
                 yAvg = 0
                 last10Pts = lastPts(10)
                 for i in range(9):
-                    xAvg += (last10Pts[i][1] - last10Pts[i + 1][1])
-                    yAvg = yAvg + (last10Pts[i][0] - last10Pts[i + 1][0])
-
-                if yAvg > 0:
-                    xAvg = xAvg / yAvg
+                    yAvg += (last10Pts[i][1] - last10Pts[i + 1][1])
+                    xAvg += (last10Pts[i][0] - last10Pts[i + 1][0])
+    
+                if xAvg > 0:
+                    yAvg = yAvg / xAvg
                 else:
-                    xAvg = 0
-                endX = pts[-1][1] + (xAvg * (600 - pts[-1][0]))
-                # self.queue_from_camera.put(("goalie_ball_pos", self.convert_pixels_to_mm(endX, 0)[0])) TODO uncomment
-            # Display the current frame
-            cv2.imshow("Frame", frame)
-            key = cv2.waitKey(1) & 0xFF
+                    yAvg = 0
+                endY = pts[-1][1] + (yAvg * (800 - pts[-1][0]))
+                
+                self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (800, endY), "mm": self.convert_pixels_to_mm_playing_field(800, endY)}))
+    
+            if draw:
+                # Draw a circle where the ball is expected to cross the goal line
+                cv2.circle(frame, (800, max(min(round(endY), 450), 55)), 10, (255, 0, 0), -1)
+    
+                # Display the current frame
+                cv2.imshow("Frame", frame)
+                cv2.imshow("Mask", mask)
+                key = cv2.waitKey(1) & 0xFF
 
     def __start_pipe(self):
         """

@@ -3,7 +3,6 @@ import cv2
 from collections import deque
 import numpy as np
 import imutils
-import time
 
 
 def ball_tracking(pipe: rs.pipeline, draw: bool = False):
@@ -15,17 +14,18 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
             return None
         else:
             for i in range(num):
-                lastPts.append(pts[len(pts) - (1 + (num - i))])
+                lastPts.append(pts[i])
+            #print(lastPts)
             return lastPts
 
     # Define the lower and upper HSV boundaries of the foosball and initialize
     # the list of center points
-    greenLower = (0, 90, 160)
-    greenUpper = (200, 167, 255)
+    colorMaskLower = (0, 62, 123)
+    colorMaskUpper = (15, 253, 255)
     pts = deque(maxlen=64)
 
     # Initialize variables and loop to continuously get and process video
-    endX = 150
+    endY = 250
     frameNum = 0
     while True:
         frameNum += 1
@@ -36,57 +36,59 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
         frame = np.asanyarray(color_frame.get_data())
 
         # Resize and blur the frame, then convert to HSV
-        # Why do we resize the frame?
-        frame = imutils.resize(frame, width=600)
+        #frame = imutils.resize(frame, width=600)
         blurred = cv2.GaussianBlur(frame, (11, 11), 0)
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
         # Construct color mask, then erode and dilate to clean up extraneous
         # contours
-        mask = cv2.inRange(hsv, greenLower, greenUpper)
-        mask = cv2.erode(mask, None, iterations=2)
+        mask = cv2.inRange(hsv, colorMaskLower, colorMaskUpper)
         mask = cv2.dilate(mask, None, iterations=2)
 
         # Find all contours in the mask and initialize the center
         cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = imutils.grab_contours(cnts)
-        center = None
+
+        cv2.line(frame, (120, 55), (800, 55), (0, 0, 255), 1)
+        cv2.line(frame, (120, 55), (120, 450), (0, 0, 255), 1)
+        cv2.line(frame, (120, 450), (800, 450), (0, 0, 255), 1)
+        cv2.line(frame, (800, 450), (800, 55), (0, 0, 255), 1)
 
         # Initialize the best contour to none, then search for the best one
-        bestContour = None
+        contoursInAOI = []
+        foundContour = False
+        bestCenter = None
         if len(cnts) > 0:
-            bestContour = cnts[0]
-            foundContour = False
-
+            bestContour = None
             # Remove all contours not in area of interest
             for c in cnts:
                 ((x, y), radius) = cv2.minEnclosingCircle(c)
                 M = cv2.moments(c)
                 center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-                if center[0] > 160 and center[0] < 500 and center[1] > 40 and center[1] < 300:
-                    if cv2.contourArea(bestContour) < cv2.contourArea(c):
-                        foundContour = True
+                if center[0] > 120 and center[0] < 800 and center[1] > 55 and center[1] < 450:
+                    foundContour = True
+                    print(cv2.contourArea(c))
+                    contoursInAOI.append(c)
+                    if (bestContour is None or cv2.contourArea(bestContour) <= cv2.contourArea(c)) and cv2.contourArea(c) < 550:
                         bestContour = c
+                        bestCenter = center
+                        print(cv2.contourArea(bestContour))
+            
+            cv2.drawContours(frame, contoursInAOI, -1, (0, 255, 0), 3)
+        else:
+            print("No Contours Found")
 
-            # If found a contour in the area of interest, find and set the center
-            if foundContour:
-                c = bestContour
-                ((x, y), radius) = cv2.minEnclosingCircle(c)
-                M = cv2.moments(c)
-                center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-
-                # Draw the circle and centroid on the frame, then update the list
-                # of tracked points
-                if draw:
-                    cv2.circle(frame, (int(x), int(y)), int(radius), (0, 255, 255), 2)
-                    cv2.circle(frame, center, 5, (0, 0, 255), -1)
-            else:
-                center = None
+        # If found a contour in the area of interest, find and set the center
+        if foundContour:
+            print(bestCenter)
+        else:
+            center = None
+            print("No Ball Found")
 
         # Update the list of centers, removing the oldest one every 3 frames if
         # there are more than 10 stored
-        if center:
-            pts.appendleft(center)
+        if bestCenter:
+            pts.appendleft(bestCenter)
         if frameNum == 3:
             if len(pts) > 10:
                 pts.pop()
@@ -106,31 +108,29 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
             yAvg = 0
             last10Pts = lastPts(10)
             for i in range(9):
-                xAvg += (last10Pts[i][1] - last10Pts[i + 1][1])
-                yAvg = yAvg + (last10Pts[i][0] - last10Pts[i + 1][0])
+                yAvg += (last10Pts[i][1] - last10Pts[i + 1][1])
+                xAvg += (last10Pts[i][0] - last10Pts[i + 1][0])
 
-            if yAvg > 0:
-                xAvg = xAvg / yAvg
+            if xAvg > 0:
+                yAvg = yAvg / xAvg
             else:
-                xAvg = 0
-            endX = pts[-1][1] + (xAvg * (600 - pts[-1][0]))
+                yAvg = 0
+            endY = pts[-1][1] + (yAvg * (800 - pts[-1][0]))
 
         if draw:
             # Draw a circle where the ball is expected to cross the goal line
-            cv2.circle(frame, (590, max(min(round(endX), 590), 10)), 10, (255, 0, 0), -1)
+            cv2.circle(frame, (800, max(min(round(endY), 450), 55)), 10, (255, 0, 0), -1)
 
             # Display the current frame
             cv2.imshow("Frame", frame)
+            cv2.imshow("Mask", mask)
             key = cv2.waitKey(1) & 0xFF
-
-    # cv2.destroyAllWindows()
-
 
 if __name__ == "__main__":
     # Configure depth and color streams
     pipeline = rs.pipeline()
     config = rs.config()
-    config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+    config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 30)
 
     # Start streaming
     pipeline.start(config)
