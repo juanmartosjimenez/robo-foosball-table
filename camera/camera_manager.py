@@ -1,4 +1,3 @@
-import math
 import multiprocessing
 import queue
 import time
@@ -61,21 +60,13 @@ class CameraManager:
         rgb = np.uint8([[[rgb[0], rgb[1], rgb[2]]]])
         hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
         return hsv[0][0]
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> 535bf065996f5a0211283558f577d1683a3aa76d
     def get_hsv_range(self, rgb: tuple) -> tuple[np.ndarray, np.ndarray]:
         target_object_rgb = self.rgb_to_hsv(rgb)
         lower_hsv = np.array((target_object_rgb[0] - 50, target_object_rgb[1] - 50, target_object_rgb[2] - 50))
         higher_hsv = np.array((target_object_rgb[0] + 50, target_object_rgb[1] + 50, target_object_rgb[2] + 50))
         return lower_hsv, higher_hsv
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> 535bf065996f5a0211283558f577d1683a3aa76d
     def start_ball_tracking(self):
         # Returns an array of a given length containing the most recent center points,
         # or "None" if there are less stored points than the given number
@@ -96,7 +87,7 @@ class CameraManager:
         draw = True
 
         # Initialize variables and loop to continuously get and process video
-        endX = 150
+        endY = 250
         frameNum = 0
         while True:
             frameNum += 1
@@ -153,16 +144,7 @@ class CameraManager:
                     center = None
                     print("No Ball Found")
             else:
-<<<<<<< HEAD
                 print("No Contours Found")
-=======
-                cX, cY = 0, 0
-            self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS,
-                                        {"pixel": (cX, cY), "mm": self.convert_pixels_to_mm_playing_field(cX, cY)}))
-            self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (cX, cY),
-                                                                         "mm": self.convert_pixels_to_mm_playing_field(
-                                                                             cX, cY)}))  # TODO Delete
->>>>>>> 535bf065996f5a0211283558f577d1683a3aa76d
 
             # Put current ball position
             self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (center[0], center[1]), "mm": self.convert_pixels_to_mm_playing_field(center[0], center[1])}))
