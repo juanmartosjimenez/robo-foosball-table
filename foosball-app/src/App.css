@@ -1,0 +1,278 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+body {
+    background-color: #FF9797;
+ 
+}
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+
+.robo-foosball-ui {
+  text-align: center;
+  color: #1e1e1e;
+  width: 100%;
+  height: 100%;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: stretch;
+  font-family: K2D, Arial;
+  font-size: .75rem;
+  font-weight: 400;
+  line-height: 25px;
+  display: flex;
+}
+
+.rectangle-1 {
+  height: 100%;
+  width: 100%;
+  background-color: #FF9797;
+  flex-direction: column;
+  flex-basis: 100%;
+  justify-content: space-evenly;
+  align-items: center;
+  padding: 0px;
+  margin: 0px;
+  display: flex;
+}
+
+.flex-container {
+  width: 56%;
+  flex-direction: row;
+  justify-content: center;
+  text-align: center;
+  align-self: center;
+  align-items: center;
+  margin-bottom: 7px;
+  line-height: 16px;
+  display: flex;
+}
+
+.right {
+  position: relative;
+  right: 0;
+  top: 0;
+}
+
+.robo-foosball-table {
+  text-align: center;
+
+}
+
+.image-1 {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  background-position: center;
+  background-size: cover;
+}
+
+.flex-container-1 {
+  width:65%;
+  flex-direction: row;
+  flex-basis: 5%;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  margin-bottom: 16px;
+  margin-left: 1px;
+  display: flex;
+}
+
+.start-game {
+  color: #000;
+  text-align: center;
+  height: 100%;
+  background-color: #0000;
+  border: none;
+  flex-direction: row;
+  flex-basis: 25%;
+  justify-content: flex-start;
+  align-items: stretch;
+  font-family: K2D, Arial;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 25px;
+  display: flex;
+}
+
+.start {
+  height: 100%;
+  background-color: #fff;
+  border: 1px solid #000;
+  border-radius: 10px;
+  flex-direction: row;
+  flex-basis: 100%;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+}
+
+.dimmed {
+  opacity: 0.5s;
+  font-size: 1.5rem;
+}
+
+.not-pressed{
+  opacity: 10;
+  font-size: 1.5rem;
+}
+.reset-button {
+  color: #000;
+  text-align: center;
+  height: 100%;
+  background-color: #0000;
+  border: none;
+  flex-direction: row;
+  flex-basis: 25%;
+  justify-content: flex-start;
+  align-items: stretch;
+  font-family: K2D, Arial;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 25px;
+  display: flex;
+}
+
+.rectangle-101-1 {
+  height: 100%;
+  background-color: #fff;
+  border: 1px solid #000;
+  border-radius: 10px;
+  flex-direction: row;
+  flex-basis: 100%;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+}
+
+.stop-button {
+  color: #000;
+  height: 100%;
+  background-color: #0000;
+  border: none;
+  flex-direction: row;
+  flex-basis: 25%;
+  justify-content: flex-start;
+  align-items: stretch;
+  font-family: K2D, Arial;
+  font-size: .5rem;
+  font-weight: 500;
+  line-height: 25px;
+  display: flex;
+}
+
+.rectangle-101-2 {
+  height: 100%;
+  background-color: #fff;
+  border: 1px solid #000;
+  border-radius: 10px;
+  flex-direction: row;
+  flex-basis: 100%;
+  justify-content: center;
+  align-items: center;
+  padding-top: 1px;
+  padding-left: 1px;
+  display: flex;
+}
+
+.emergency-stop {
+  margin-top: 1px;
+  margin-left: 1px;
+}
+
+.video-text-box {
+  color: #000;
+  text-align: center;
+  width: 25%;
+  background-color: #fff;
+  border: 1px solid #000;
+  border-radius: 10px;
+  flex-direction: row;
+  flex-basis: 5%;
+  justify-content: center;
+  align-items: center;
+  margin-top: 3px;
+  margin-left: 1px;
+  padding-left: 1px;
+  font-family: K2D, Arial;
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 35px;
+  margin-bottom:5px;
+  display: flex;
+}
+
+.video-stream {
+  width: 800px;
+  height: 280px;
+  object-fit: cover;
+  background-position: center;
+  border: 1px solid #000;
+  border-radius: 10px;
+  margin-bottom: 5px;
+}
+
+.coordinate-box {
+  color: #000;
+  width: 25%;
+  background-color: #fff;
+  border: 1px solid #000;
+  border-radius: 10px;
+  flex-direction: row;
+  flex-basis: 5%;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 7px;
+  margin-left: 1px;
+  padding-top: 1px;
+  font-size: 1.5rem;
+  font-weight: 500;
+  display: flex;
+}
+.button-container {
+  display: flex;
+  justify-content: center;
+}
+
+.button {
+  margin: 10px; /* 5px/2 = 2.5px */
+}
+
+.xy {
+  margin-top: 1px;
+}
