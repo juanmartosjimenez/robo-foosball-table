@@ -80,6 +80,7 @@ def detect_markers(rgb_frame: np.array) -> tuple[np.ndarray, np.ndarray, np.ndar
             tmp_corners[ii] = np.roll(tmp_corners[ii], 2, axis=1)
             stack.remove(camera_measurements.id_aruco_bottom_right)
         elif ids[ii] == camera_measurements.id_aruco_playing_field_top:
+            tmp_corners[ii] = np.roll(tmp_corners[ii], 2, axis=1)
             stack.remove(camera_measurements.id_aruco_playing_field_top)
         elif ids[ii] == camera_measurements.id_aruco_playing_field_bottom:
             stack.remove(camera_measurements.id_aruco_playing_field_bottom)

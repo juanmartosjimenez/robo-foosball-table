@@ -23,8 +23,8 @@ class CameraManager:
     def __init__(self):
         # Start the camera pipe
         self.pipe: Optional[rs.pipeline] = None
-        self.__start_pipe()
         self.camera_measurements = CameraMeasurements()
+        self.__start_pipe()
         # Detect aruco markers
         rgb_frame = self.read_color_frame()
         # Detect aruco markers
