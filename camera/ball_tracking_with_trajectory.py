@@ -6,18 +6,6 @@ import imutils
 
 
 def ball_tracking(pipe: rs.pipeline, draw: bool = False):
-    # Returns an array of a given length containing the most recent center points,
-    # or "None" if there are less stored points than the given number
-    def lastPts(num):
-        lastPts = []
-        if num > len(pts):
-            return None
-        else:
-            for i in range(num):
-                lastPts.append(pts[i])
-            #print(lastPts)
-            return lastPts
-
     # Define the lower and upper HSV boundaries of the foosball and initialize
     # the list of center points
     #colorMaskLower = (0, 62, 123)

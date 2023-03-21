@@ -1,7 +1,6 @@
 import queue
 import time
 import sys
-sys.path.append("..")
 
 from motors.roboclaw import Roboclaw
 import serial.tools.list_ports
@@ -10,7 +9,7 @@ from other.events import MotorEvent
 
 
 class MotorManager:
-    def __init__(self, serial_port: str = "COM3"):
+    def __init__(self, serial_port: str = "COM5"):
         # Since only one roboclaw is being used, default address is 0x80.
         self.address = 0x80
         # Initialize roboclaw object.
