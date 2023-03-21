@@ -20,9 +20,11 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
 
     # Define the lower and upper HSV boundaries of the foosball and initialize
     # the list of center points
-    colorMaskLower = (0, 62, 123)
-    colorMaskUpper = (15, 253, 255)
-    pts = deque(maxlen=64)
+    #colorMaskLower = (0, 62, 123)
+    #colorMaskUpper = (15, 253, 255)
+    colorMaskLower = (0, 91, 170)
+    colorMaskUpper = (2, 174, 255)
+    pts = deque(maxlen=10)
 
     # Initialize variables and loop to continuously get and process video
     endY = 250
@@ -65,16 +67,17 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
                 ((x, y), radius) = cv2.minEnclosingCircle(c)
                 M = cv2.moments(c)
                 center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-                if center[0] > 120 and center[0] < 800 and center[1] > 55 and center[1] < 450:
+                if center[0] > 120 and center[0] < 800 and center[1] > 55 and center[1] < 450 and cv2.contourArea(c) < 550:
                     foundContour = True
-                    print(cv2.contourArea(c))
+                    #print(cv2.contourArea(c))
                     contoursInAOI.append(c)
-                    if (bestContour is None or cv2.contourArea(bestContour) <= cv2.contourArea(c)) and cv2.contourArea(c) < 550:
+                    if bestContour is None or cv2.contourArea(bestContour) <= cv2.contourArea(c):
                         bestContour = c
                         bestCenter = center
-                        print(cv2.contourArea(bestContour))
             
-            cv2.drawContours(frame, contoursInAOI, -1, (0, 255, 0), 3)
+            cv2.drawContours(frame, contoursInAOI, -1, (255, 0, 0), 10)
+            cv2.drawContours(frame, cnts, -1, (0, 255, 0), 3)
+        """
         else:
             print("No Contours Found")
 
@@ -82,15 +85,16 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
         if foundContour:
             print(bestCenter)
         else:
-            center = None
             print("No Ball Found")
+        """
 
         # Update the list of centers, removing the oldest one every 3 frames if
-        # there are more than 10 stored
+        # there are more than 10 stored.
         if bestCenter:
-            pts.appendleft(bestCenter)
+            if len(pts) < 2 or abs(bestCenter[0] - pts[-1][0]) > 3 or abs(bestCenter[1] - pts[-1][1]) > 3:
+                pts.appendleft(bestCenter)
         if frameNum == 3:
-            if len(pts) > 10:
+            if len(pts) > 2:
                 pts.pop()
             frameNum = 0
 
@@ -102,14 +106,15 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
 
         # Calculate the average change in x per change in y in order to predict
         # the ball's path
-        last10Pts = lastPts(10)
-        if last10Pts:
+        if len(pts) > 1:
             xAvg = 0
             yAvg = 0
-            last10Pts = lastPts(10)
-            for i in range(9):
-                yAvg += (last10Pts[i][1] - last10Pts[i + 1][1])
-                xAvg += (last10Pts[i][0] - last10Pts[i + 1][0])
+            for i in range(len(pts) - 1):
+                yAvg += (pts[i][1] - pts[i + 1][1])
+                xAvg += (pts[i][0] - pts[i + 1][0])
+
+            if bestCenter:
+                cv2.arrowedLine(frame, (bestCenter[0], bestCenter[1]), (round(bestCenter[0] + xAvg), round(bestCenter[1] + yAvg)), (255, 0, 0), 5)
 
             if xAvg > 0:
                 yAvg = yAvg / xAvg

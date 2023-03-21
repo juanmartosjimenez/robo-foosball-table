@@ -1,5 +1,7 @@
 import queue
 import time
+import sys
+sys.path.append("..")
 
 from motors.roboclaw import Roboclaw
 import serial.tools.list_ports
@@ -8,7 +10,7 @@ from other.events import MotorEvent
 
 
 class MotorManager:
-    def __init__(self, serial_port: str = "COM5"):
+    def __init__(self, serial_port: str = "COM3"):
         # Since only one roboclaw is being used, default address is 0x80.
         self.address = 0x80
         # Initialize roboclaw object.
@@ -254,3 +256,6 @@ class MotorManager:
         """
         center_player_mm = 240
         self.move_to_pos_m1(self._mm_to_encoder_m1(mm))
+
+if __name__ == "__main__":
+    print(MotorManager.read_serial_ports())
