@@ -30,7 +30,8 @@ class CameraManager:
         # Detect aruco markers
         self.corners, self.ids, self.rejected = detect_markers(rgb_frame)
         # Calculate ratio of pixels to mm
-        self.pixel_to_mm_x, self.pixel_to_mm_y = get_pixel_to_mm(self.corners, self.ids)
+        self.pixel_to_mm_x, self.pixel_to_mm_y, self.playing_field_pixel_to_mm_x, self.playing_field_pixel_to_mm_y = get_pixel_to_mm(
+            self.corners, self.ids)
 
     def draw_aruco_markers(self):
         # Draw the aruco markers
@@ -60,11 +61,13 @@ class CameraManager:
         rgb = np.uint8([[[rgb[0], rgb[1], rgb[2]]]])
         hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
         return hsv[0][0]
+
     def get_hsv_range(self, rgb: tuple) -> tuple[np.ndarray, np.ndarray]:
         target_object_rgb = self.rgb_to_hsv(rgb)
         lower_hsv = np.array((target_object_rgb[0] - 50, target_object_rgb[1] - 50, target_object_rgb[2] - 50))
         higher_hsv = np.array((target_object_rgb[0] + 50, target_object_rgb[1] + 50, target_object_rgb[2] + 50))
         return lower_hsv, higher_hsv
+
     def start_ball_tracking(self):
         # Returns an array of a given length containing the most recent center points,
         # or "None" if there are less stored points than the given number
@@ -123,8 +126,11 @@ class CameraManager:
                 cX = int(M["m01"] / M["m00"])
             else:
                 cX, cY = 0, 0
-            self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (cX, cY), "mm": self.convert_pixels_to_mm_playing_field(cX, cY)}))
-            self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (cX, cY), "mm": self.convert_pixels_to_mm_playing_field(cX, cY)})) #TODO Delete
+            self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS,
+                                        {"pixel": (cX, cY), "mm": self.convert_pixels_to_mm_playing_field(cX, cY)}))
+            self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (cX, cY),
+                                                                         "mm": self.convert_pixels_to_mm_playing_field(
+                                                                             cX, cY)}))  # TODO Delete
 
             # Draw the ball
             cv2.drawContours(frame, [c], -1, (0, 255, 0), 2)
@@ -172,7 +178,9 @@ class CameraManager:
         :return:
         """
         config = rs.config()
-        config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 60)
+        config.enable_stream(rs.stream.color, self.camera_measurements.camera_resolution_y,
+                             self.camera_measurements.camera_resolution_x, rs.format.bgr8,
+                             self.camera_measurements.camera_fps)
         pipe = rs.pipeline()
         pipe.start(config)
         total_frames = 0
@@ -205,26 +213,33 @@ class CameraManager:
     def get_intrinsics(self):
         return self.pipe.get_active_profile().get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
 
-    def convert_pixels_to_mm(self, x, y):
-        # Do 540 - x so pixel 0, 0 is on the bottom right.
-        out = round((540 - x) / self.pixel_to_mm_x, 2), round(y / self.pixel_to_mm_y, 2)
-        return out
-
     def convert_pixels_to_mm_playing_field(self, x, y):
         # Get mm coords relative to the foosball table boundaries.
         # Assume that aruco marker is perfectly aligned with corners of the table. TODO fix this assumption, place
         # aruco marker in the middle of the table and use this value to calculate offset.
+
+        # Get aruco padding in pixels
+        pixel_aruco_padding = self.camera_measurements.mm_aruco_padding / self.playing_field_pixel_to_mm_x
+
+        # Gets corner of table pixel value.
         bottom_left_x = 0
         bottom_right_y = 0
+        playing_field_bottom_x = 0
         for ii, id in enumerate(self.ids):
             if id[0] == self.camera_measurements.id_aruco_bottom_left:
                 # Get corner pixel value
                 bottom_left_x = self.corners[ii][:, 0][0][0]
             if id[0] == self.camera_measurements.id_aruco_bottom_right:
                 bottom_right_y = self.corners[ii][:, 0][0][1]
+            if id[0] == self.camera_measurements.id_aruco_playing_field_bottom:
+                # Have to add the white padding behind the aruco marker.
+                playing_field_bottom_x = self.corners[ii][:, 0][0][0] + pixel_aruco_padding
 
-        out = round((540 - x - bottom_left_x) / self.pixel_to_mm_x, 2), round((y - bottom_right_y) / self.pixel_to_mm_y, 2)
+        # Camera 0 pixel is at the top right so subtract camera resolution to get bottom right point.
+        out = round((self.camera_measurements.camera_resolution_x - x - playing_field_bottom_x) / self.playing_field_pixel_to_mm_x,
+                    2), round((y - bottom_right_y) / self.playing_field_pixel_to_mm_y, 2)
         return out
+
 
 if __name__ == "__main__":
     camera_manager = CameraManager()
