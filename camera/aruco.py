@@ -113,20 +113,24 @@ def get_pixel_to_mm(corners, ids):
             playing_field_bottom = corners[ii][0]
 
     # Calculate the number of pixels from the corners of the ArUco markers.
-    x_diff = (bottom_right - bottom_left)[0, 0]
-    y_diff = (bottom_right - top_right)[0, 1]
-    x_diff_playing_field = (playing_field_bottom - playing_field_top)[0, 0]
+    y_diff = (bottom_right - bottom_left)[0, 0]
+    x_diff = (bottom_right - top_right)[0, 1]
+    x_diff_playing_field = (playing_field_bottom - playing_field_top)[0, 1]
+    print(x_diff, "x_diff")
+    print(y_diff, "y_diff")
+    print(x_diff_playing_field, "x_diff_playing_field")
     # Have to take into account the white padding surrounding the marker
-    x_length_mm = camera_measurements.mm_x_corner_to_corner
-    y_length_mm = camera_measurements.mm_y_corner_to_corner
-    playing_field_mm = camera_measurements.mm_aruco_playing_field_corner_to_corner
+    x_length_mm = camera_measurements.mm_playing_field_width
+    y_length_mm = camera_measurements.mm_playing_field_length
     # x_length_mm -= camera_measurements.mm_aruco_padding*2
     y_length_mm += camera_measurements.mm_aruco_padding*2
-    pixel_to_mm_x = x_length_mm / x_diff
-    pixel_to_mm_y = y_length_mm / y_diff
-    playing_field_pixel_to_mm_x = x_diff_playing_field / playing_field_mm
+    pixel_to_mm_x = x_diff / x_length_mm
+    pixel_to_mm_y = y_diff / y_length_mm
+    playing_field_pixel_to_mm_x = x_diff_playing_field / x_length_mm
     print("Pixel to mm x: {}".format(pixel_to_mm_x))
     print("Pixel to mm y: {}".format(pixel_to_mm_y))
+    print("Playing field pixel to mm x: {}".format(playing_field_pixel_to_mm_x))
+    print("Playing field pixel to mm y: {}".format(pixel_to_mm_y))
     # TODO pixel_to_mm_y is not correct, should be playing_field_pixel_to_mm_x
     return pixel_to_mm_x, pixel_to_mm_y, playing_field_pixel_to_mm_x, pixel_to_mm_y
 

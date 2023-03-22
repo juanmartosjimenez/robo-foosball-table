@@ -15,8 +15,6 @@ measurements = {"MM_ARUCO_PADDING": 10,
                 "MM_PLAYING_FIELD_LENGTH": 1170,
                 "MM_PLAYING_FIELD_WIDTH": 630,
                 "MM_Y_CORNER_TO_CORNER": 1187,
-                "MM_X_CORNER_TO_CORNER": 609,
-                "MM_ARUCO_PLAYING_FIELD_CORNER_TO_CORNER": 615,
                 "CAMERA_RESOLUTION_X": 540,
                 "CAMERA_RESOLUTION_Y": 960,
                 "CAMERA_FPS": 60}
@@ -34,9 +32,6 @@ class CameraMeasurements(pydantic.BaseModel):
     mm_aruco_length: float = measurements["MM_ARUCO_LENGTH"]
     mm_playing_field_length: float = measurements["MM_PLAYING_FIELD_LENGTH"]
     mm_playing_field_width: float = measurements["MM_PLAYING_FIELD_WIDTH"]
-    mm_y_corner_to_corner: float = measurements["MM_Y_CORNER_TO_CORNER"]
-    mm_x_corner_to_corner: float = measurements["MM_X_CORNER_TO_CORNER"]
-    mm_aruco_playing_field_corner_to_corner: float = measurements["MM_ARUCO_PLAYING_FIELD_CORNER_TO_CORNER"]
     camera_resolution_x: int = measurements["CAMERA_RESOLUTION_X"]
     camera_resolution_y: int = measurements["CAMERA_RESOLUTION_Y"]
     camera_fps: int = measurements["CAMERA_FPS"]
