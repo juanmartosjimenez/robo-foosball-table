@@ -52,7 +52,7 @@ class CameraManager:
                     queue_from_camera.put(("message", "Ball tracking started"))
                     self.start_ball_tracking()
                 else:
-                    raise ValueError(f"Unknown event {str(event)}")
+                    raise ValueError(f"Unknown camera_manager event {str(data)}")
             except queue.Empty:
                 pass
 
@@ -68,6 +68,7 @@ class CameraManager:
         return lower_hsv, higher_hsv
 
     def start_ball_tracking(self):
+<<<<<<< HEAD
         # Define the lower and upper HSV boundaries of the foosball and initialize
         # the list of center points
         #colorMaskLower = (0, 62, 123)
@@ -76,8 +77,27 @@ class CameraManager:
         colorMaskUpper = (2, 174, 255)
         pts = deque(maxlen=10)
     
+=======
+        # Returns an array of a given length containing the most recent center points,
+        # or "None" if there are less stored points than the given number
+        def lastPts(num):
+            lastPts = []
+            if num > len(pts):
+                return None
+            else:
+                for i in range(num):
+                    lastPts.append(pts[len(pts) - (1 + (num - i))])
+                return lastPts
+
+        # Define the lower and upper HSV boundaries of the foosball and initialize
+        # the list of center points
+        greenLower, greenUpper = self.get_hsv_range((235, 100, 48))
+        pts = deque(maxlen=64)
+        draw = True
+
+>>>>>>> juanmartosjimenez/closingloop
         # Initialize variables and loop to continuously get and process video
-        endY = 250
+        endX = 150
         frameNum = 0
         while True:
             frameNum += 1
@@ -88,17 +108,29 @@ class CameraManager:
             #frame = np.asanyarray(color_frame.get_data())
     
             # Resize and blur the frame, then convert to HSV
+<<<<<<< HEAD
             #frame = imutils.resize(frame, width=600)
             blurred = cv2.GaussianBlur(frame, (11, 11), 0)
+=======
+            # Why do we resize the frame?
+            # frame = imutils.resize(frame, width=600)
+            blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+>>>>>>> juanmartosjimenez/closingloop
             hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
     
             # Construct color mask, then erode and dilate to clean up extraneous
             # contours
+<<<<<<< HEAD
             mask = cv2.inRange(hsv, colorMaskLower, colorMaskUpper)
+=======
+            mask = cv2.inRange(hsv, greenLower, greenUpper)
+            # mask = cv2.erode(mask, None, iterations=2)
+>>>>>>> juanmartosjimenez/closingloop
             mask = cv2.dilate(mask, None, iterations=2)
     
             # Find all contours in the mask and initialize the center
             cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+<<<<<<< HEAD
             cnts = imutils.grab_contours(cnts)
     
             cv2.line(frame, (120, 55), (800, 55), (0, 0, 255), 1)
@@ -139,21 +171,64 @@ class CameraManager:
                 self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (center[0], center[1]), "mm": self.convert_pixels_to_mm_playing_field(center[0], center[1])}))
                 if len(pts) < 2 or abs(bestCenter[0] - pts[-1][0]) > 3 or abs(bestCenter[1] - pts[-1][1]) > 3:
                     pts.appendleft(bestCenter)
+=======
+
+            cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+            if not cnts:
+                cv2.imshow("Frame", frame)
+                key = cv2.waitKey(1)
+                continue
+
+            # Find the largest contour
+            c = max(cnts, key=cv2.contourArea)
+
+            # Find the center of the ball
+            M = cv2.moments(c)
+            if M["m00"] != 0:
+                cY = int(M["m10"] / M["m00"])
+                cX = int(M["m01"] / M["m00"])
+            else:
+                cX, cY = 0, 0
+            self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS,
+                                        {"pixel": (cX, cY), "mm": self.convert_pixels_to_mm_playing_field(cX, cY)}))
+            self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (cX, cY),
+                                                                         "mm": self.convert_pixels_to_mm_playing_field(
+                                                                             cX, cY)}))  # TODO Delete
+
+            # Draw the ball
+            cv2.drawContours(frame, [c], -1, (0, 255, 0), 2)
+            cv2.circle(frame, (cX, cY), 5, (255, 0, 0), -1)
+
+            # Display the result
+            cv2.imshow("Frame", frame)
+            key = cv2.waitKey(1)
+            continue
+
+            # Update the list of centers, removing the oldest one every 3 frames if
+            # there are more than 10 stored
+            if center:
+                pts.appendleft(center)
+>>>>>>> juanmartosjimenez/closingloop
             if frameNum == 3:
                 if len(pts) > 2:
                     pts.pop()
                 frameNum = 0
+<<<<<<< HEAD
     
             # Visually connect all the stored center points with lines
             for i in range(1, len(pts)):
                 thickness = int(np.sqrt(64 / float(i + 1)) * 2.5)
                 cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
     
+=======
+
+>>>>>>> juanmartosjimenez/closingloop
             # Calculate the average change in x per change in y in order to predict
             # the ball's path
             if len(pts) > 1:
                 xAvg = 0
                 yAvg = 0
+<<<<<<< HEAD
                 for i in range(len(pts) - 1):
                     yAvg += (pts[i][1] - pts[i + 1][1])
                     xAvg += (pts[i][0] - pts[i + 1][0])
@@ -175,6 +250,21 @@ class CameraManager:
             # Display the current frame
             cv2.imshow("Frame", frame)
             cv2.imshow("Mask", mask)
+=======
+                last10Pts = lastPts(10)
+                for i in range(9):
+                    xAvg += (last10Pts[i][1] - last10Pts[i + 1][1])
+                    yAvg = yAvg + (last10Pts[i][0] - last10Pts[i + 1][0])
+
+                if yAvg > 0:
+                    xAvg = xAvg / yAvg
+                else:
+                    xAvg = 0
+                endX = pts[-1][1] + (xAvg * (600 - pts[-1][0]))
+                # self.queue_from_camera.put(("goalie_ball_pos", self.convert_pixels_to_mm(endX, 0)[0])) TODO uncomment
+            # Display the current frame
+            cv2.imshow("Frame", frame)
+>>>>>>> juanmartosjimenez/closingloop
             key = cv2.waitKey(1) & 0xFF
 
     def __start_pipe(self):
@@ -241,8 +331,9 @@ class CameraManager:
                 # Have to add the white padding behind the aruco marker.
                 playing_field_bottom_x = self.corners[ii][:, 0][0][0] + pixel_aruco_padding
 
+        # print(playing_field_bottom_x)
         # Camera 0 pixel is at the top right so subtract camera resolution to get bottom right point.
-        out = round((self.camera_measurements.camera_resolution_x - x - playing_field_bottom_x) / self.playing_field_pixel_to_mm_x,
+        out = round((self.camera_measurements.camera_resolution_x - x - (self.camera_measurements.camera_resolution_x - playing_field_bottom_x)) / self.playing_field_pixel_to_mm_x,
                     2), round((y - bottom_right_y) / self.playing_field_pixel_to_mm_y, 2)
         return out
 

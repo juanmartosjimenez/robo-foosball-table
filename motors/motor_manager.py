@@ -41,12 +41,12 @@ class MotorManager:
                 elif event == MotorEvent.HOME_M2:
                     self.home_m2()
                 elif event == MotorEvent.MOVE_TO_MM_M1:
-                    self.move_to_mm_m1(data[1])
+                    self.move_center_goalie(data[1])
                 elif event == MotorEvent.STOP:
                     self.stop()
                 elif event == MotorEvent.ENCODER_VALS:
                     encoder_val = self.read_encoders()
-                    queue_from_motors.put_nowait(("read_encoders", {"encoders": encoder_val,
+                    queue_from_motors.put_nowait((MotorEvent.ENCODER_VALS, {"encoders": encoder_val,
                                                                     "mm_m1": self._encoder_to_mm_m1(encoder_val[0]),
                                                                     "degrees_m2": self._encoder_to_degrees_m2(
                                                                         encoder_val[0])}))
@@ -56,10 +56,10 @@ class MotorManager:
                     self.move_to_default_pos_m2()
                     self.move_to_default_pos_m1()
                 else:
-                    raise ValueError("Unknown event: " + event)
+                    raise ValueError("Unknown motor_manager event: " + data)
             except queue.Empty:
                 if time.time() - start_time > 1:
-                    # Every 0.5 seconds, read the encoders.
+                    # Every 1 seconds, read the encoders.
                     queue_to_motors.put_nowait((MotorEvent.ENCODER_VALS, None))
                     start_time = time.time()
                 pass
@@ -249,12 +249,19 @@ class MotorManager:
 
     def move_to_mm_m1(self, mm):
         """
-        Moves the player the given number of inches.
+        Moves the player the given number of mm.
         :param mm:
         :return:
         """
-        center_player_mm = 240
         self.move_to_pos_m1(self._mm_to_encoder_m1(mm))
+
+    def move_center_goalie(self, mm):
+        """
+        Moves the goalie to the center of the goal.
+        :return:
+        """
+        mm_distance_to_golie = 315
+        self.move_to_pos_m1(self._mm_to_encoder_m1(mm-mm_distance_to_golie))
 
 if __name__ == "__main__":
     print(MotorManager.read_serial_ports())

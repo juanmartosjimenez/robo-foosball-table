@@ -9,7 +9,7 @@ import threading
 from other.events import FrontendEvent, MotorEvent, CameraEvent
 
 if TYPE_CHECKING:
-    from frontend import Frontend
+    from app import Frontend
 
 from subscriber_publisher import Publisher
 
@@ -64,7 +64,7 @@ class Backend(object):
                 self.publisher.publish(FrontendEvent.PREDICTED_BALL_POS, data)
                 self.queue_to_motors.put_nowait((MotorEvent.MOVE_TO_MM_M1, data["mm"][0]))
             else:
-                print("Unknown event: " + event)
+                print(f"Unknown read_camera event: {str(queue_data)}")
         except queue.Empty:
             return
 
