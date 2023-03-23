@@ -8,7 +8,10 @@ measurements = {"ENC_M2_360_ROTATION": 145,
                 "ENC_M2_DEFAULT": 135,
                 "ENC_M2_STRIKE": 110,
                 "ENC_M1_DEFAULT": 667,
-                "MM_TO_ENC_M1": 13}
+                "MM_TO_ENC_M1": 13,
+                "MM_DISTANCE_TO_GOALIE_2": 315,
+                "M1_ENCODER_LIMIT": 1600,
+                "M2_ENCODER_LIMIT": 2000}
 
 
 class MotorMeasurements(pydantic.BaseModel):
@@ -23,3 +26,5 @@ class MotorMeasurements(pydantic.BaseModel):
     enc_m1_default: int = measurements["ENC_M1_DEFAULT"]
     # M1 conversion unit from mm to encoder position.
     m1_mm_to_enc: float = measurements["MM_TO_ENC_M1"]
+    m1_encoder_limit: int = measurements["M1_ENCODER_LIMIT"]
+    m2_encoder_limit: int = measurements["M2_ENCODER_LIMIT"]

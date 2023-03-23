@@ -97,6 +97,7 @@ class MotorManager:
             time.sleep(0.4)
             if self.roboclaw.ReadSpeedM1(self.address)[1] == 0:
                 self.stop()
+                self.roboclaw.SetEncM1(self.address, 0)
                 break
 
         # This line is not necessary because the encoder is reset to 0 when the motor triggers the limit switch.
@@ -171,7 +172,8 @@ class MotorManager:
         """
         # if pos > self.right_limit:
         # raise ValueError("Position out of range")
-        self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 16000, 2000, 16000, pos, 1)
+        if pos < 0: pos = 0
+        self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 24000, 4000, 24000, pos, 1)
 
     def move_to_default_pos_m1(self):
         """
@@ -260,8 +262,22 @@ class MotorManager:
         Moves the goalie to the center of the goal.
         :return:
         """
-        mm_distance_to_golie = 315
-        self.move_to_pos_m1(self._mm_to_encoder_m1(mm-mm_distance_to_golie))
+        # mm_space_to_encoder_0_position = 25
+        # mm_distance_to_golie = 264
+        # Ideally this is a measurable value but there is some uncertainty with the ball playing field pixels.
+        mm_distance_to_goalie_2 = 315
+        mm_distance_to_goalie_1 = 95
+        mm_distance_to_goalie_3 = 535
+        mm_goalie_2_movement = self._mm_to_encoder_m1(mm-mm_distance_to_goalie_2)
+        mm_goalie_1_movement = self._mm_to_encoder_m1(mm-mm_distance_to_goalie_1)
+        mm_goalie_3_movement = self._mm_to_encoder_m1(mm-mm_distance_to_goalie_3)
+        if 0 < mm_goalie_2_movement < self.measurements.m1_encoder_limit:
+            self.move_to_pos_m1(mm_goalie_2_movement)
+        elif mm_goalie_2_movement < 0:
+            self.move_to_pos_m1(mm_goalie_1_movement)
+        elif mm_goalie_2_movement > self.measurements.m1_encoder_limit:
+            self.move_to_pos_m1(mm_goalie_3_movement)
+
 
 if __name__ == "__main__":
     print(MotorManager.read_serial_ports())

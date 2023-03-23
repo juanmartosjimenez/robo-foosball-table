@@ -25,7 +25,7 @@ def draw_markers(ids, corners, rgb_frame):
     cv.waitKey(0)
 
 
-def pose_estimation(ids, corners, rgb_frame, intrinsics):
+def pose_estimation(ids, corners, intrinsics, rgb_frame = None):
     """
     Use solvePnP to estimate the pose of the camera relative to the markers.
     :return:
@@ -37,18 +37,22 @@ def pose_estimation(ids, corners, rgb_frame, intrinsics):
 
     vecs = {}
     for ii in range(len(corners)):
+        print(ids[ii][0])
         print(corners[ii])
         retval, rvec, tvec = cv.solvePnP(objpoints, corners[ii], camera_matrix, None)
         vecs[ids[ii][0]] = (rvec, tvec)
-        cv.drawFrameAxes(rgb_frame, camera_matrix, None, rvec, tvec, 50, thickness=2)
-    cv.imshow("Image", rgb_frame)
-    cv.waitKey(0)
+        if rgb_frame is not None:
+            cv.drawFrameAxes(rgb_frame, camera_matrix, None, rvec, tvec, 50, thickness=2)
+    if rgb_frame is not None:
+        cv.imshow("Image", rgb_frame)
+        cv.waitKey(0)
 
     # Top right 1
     # Top left 2
     # Bottom right 3
     # Bottom left 4
-    print(np.linalg.norm(vecs[camera_measurements.id_aruco_bottom_right][1] - vecs[camera_measurements.id_aruco_bottom_left][1]))
+    print(np.linalg.norm(vecs[camera_measurements.id_aruco_playing_field_bottom][1] - vecs[camera_measurements.id_aruco_playing_field_top][1]))
+    print("here")
 
 
 def detect_markers(rgb_frame: np.array) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
