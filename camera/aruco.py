@@ -127,7 +127,7 @@ def get_pixel_to_mm(corners, ids):
     x_length_mm = camera_measurements.mm_playing_field_width
     y_length_mm = camera_measurements.mm_playing_field_length
     # x_length_mm -= camera_measurements.mm_aruco_padding*2
-    y_length_mm += camera_measurements.mm_aruco_padding*2
+    y_length_mm += camera_measurements.mm_aruco_padding*2 + camera_measurements.y_perspective_compensation*2
     pixel_to_mm_x = x_diff / x_length_mm
     pixel_to_mm_y = y_diff / y_length_mm
     playing_field_pixel_to_mm_x = x_diff_playing_field / x_length_mm

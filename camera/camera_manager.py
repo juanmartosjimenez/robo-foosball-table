@@ -234,25 +234,26 @@ class CameraManager:
 
         # Get aruco padding in pixels
         pixel_aruco_padding = self.camera_measurements.mm_aruco_padding / self.playing_field_pixel_to_mm_x
+        y_perspective_compensation = self.camera_measurements.y_perspective_compensation / self.playing_field_pixel_to_mm_y
 
         # Gets corner of table pixel value.
-        bottom_left_x = 0
-        bottom_right_y = 0
+        playing_field_bottom_y = 0
         playing_field_bottom_x = 0
         for ii, id in enumerate(self.ids):
-            if id[0] == self.camera_measurements.id_aruco_bottom_left:
-                # Get corner pixel value
-                bottom_left_x = self.corners[ii][:, 0][0][0]
             if id[0] == self.camera_measurements.id_aruco_bottom_right:
-                bottom_right_y = self.corners[ii][:, 0][0][1]
+                playing_field_bottom_y = self.corners[ii][:, 0][0][1] + pixel_aruco_padding + y_perspective_compensation
             if id[0] == self.camera_measurements.id_aruco_playing_field_bottom:
                 # Have to add the white padding behind the aruco marker.
                 playing_field_bottom_x = self.corners[ii][:, 0][0][0] + pixel_aruco_padding
 
+        #cv2.circle(self.rgb_frame, (int(playing_field_bottom_x), int(playing_field_bottom_y)), 10, (255, 0, 0), -1)
+        # show frame
+
+
         # print(playing_field_bottom_x)
         # Camera 0 pixel is at the top right so subtract camera resolution to get bottom right point.
         out = round((self.camera_measurements.camera_resolution_x - x - (self.camera_measurements.camera_resolution_x - playing_field_bottom_x)) / self.playing_field_pixel_to_mm_x,
-                    2), round((y - bottom_right_y) / self.playing_field_pixel_to_mm_y, 2)
+                    2), round((y - playing_field_bottom_y) / self.playing_field_pixel_to_mm_y, 2)
         return out
 
 
