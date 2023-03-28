@@ -13,8 +13,7 @@
   }
 }
 body {
-    background-color: #FF9797;
- 
+  background-color: #ff9797;
 }
 .App-header {
   background-color: #282c34;
@@ -40,8 +39,6 @@ body {
   }
 }
 
-
-
 .robo-foosball-ui {
   text-align: center;
   color: #1e1e1e;
@@ -51,7 +48,7 @@ body {
   justify-content: flex-start;
   align-items: stretch;
   font-family: K2D, Arial;
-  font-size: .75rem;
+  font-size: 0.75rem;
   font-weight: 400;
   line-height: 25px;
   display: flex;
@@ -60,7 +57,7 @@ body {
 .rectangle-1 {
   height: 100%;
   width: 100%;
-  background-color: #FF9797;
+  background-color: #ff9797;
   flex-direction: column;
   flex-basis: 100%;
   justify-content: space-evenly;
@@ -90,7 +87,6 @@ body {
 
 .robo-foosball-table {
   text-align: center;
-
 }
 
 .image-1 {
@@ -102,7 +98,7 @@ body {
 }
 
 .flex-container-1 {
-  width:65%;
+  width: 65%;
   flex-direction: row;
   flex-basis: 5%;
   justify-content: space-between;
@@ -147,7 +143,7 @@ body {
   font-size: 1.5rem;
 }
 
-.not-pressed{
+.not-pressed {
   opacity: 10;
   font-size: 1.5rem;
 }
@@ -190,7 +186,7 @@ body {
   justify-content: flex-start;
   align-items: stretch;
   font-family: K2D, Arial;
-  font-size: .5rem;
+  font-size: 0.5rem;
   font-weight: 500;
   line-height: 25px;
   display: flex;
@@ -233,7 +229,7 @@ body {
   font-size: 1.5rem;
   font-weight: 500;
   line-height: 35px;
-  margin-bottom:5px;
+  margin-bottom: 5px;
   display: flex;
 }
 
@@ -275,4 +271,18 @@ body {
 
 .xy {
   margin-top: 1px;
+}
+
+.image-container {
+  position: relative;
+}
+
+.white-circle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: white;
+  top: 0;
+  left: 0;
 }
