@@ -3,20 +3,37 @@ import cv2
 from collections import deque
 import numpy as np
 import imutils
+from math import sqrt
 
 
 def ball_tracking(pipe: rs.pipeline, draw: bool = False):
+    # -----Constants-----
+    # If algo predicts that it will take this many frames or less for ball to
+    #   cross goal line, send move command to predicted position, else send
+    #   current position
+    sendMoveFrameThresh = 60
+    
+    # The maximum size that a contour can be to considered a ball by algo
+    maxContourSize = 1000
+    
+    # The number of frames before the ball is predicted to pass the goalie
+    #   that the kick command will be sent (0 means command will be sent right
+    #   when ball reaches goalie)
+    kickFrameDelay = 5
+    
     # Define the lower and upper HSV boundaries of the foosball and initialize
     # the list of center points
-    #colorMaskLower = (0, 62, 123)
-    #colorMaskUpper = (15, 253, 255)
-    colorMaskLower = (0, 91, 170)
-    colorMaskUpper = (2, 174, 255)
+    colorMaskLower = (0, 90, 177)
+    colorMaskUpper = (210, 195, 255)
     pts = deque(maxlen=10)
 
     # Initialize variables and loop to continuously get and process video
     endY = 250
+    lastPosSent = 250
     frameNum = 0
+    xSpeed = 0
+    lastX = 0
+    ballReset = True
     while True:
         frameNum += 1
 
@@ -39,14 +56,13 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
         cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = imutils.grab_contours(cnts)
 
-        cv2.line(frame, (120, 55), (800, 55), (0, 0, 255), 1)
-        cv2.line(frame, (120, 55), (120, 450), (0, 0, 255), 1)
-        cv2.line(frame, (120, 450), (800, 450), (0, 0, 255), 1)
+        cv2.line(frame, (140, 55), (800, 55), (0, 0, 255), 1)
+        cv2.line(frame, (140, 55), (140, 450), (0, 0, 255), 1)
+        cv2.line(frame, (140, 450), (800, 450), (0, 0, 255), 1)
         cv2.line(frame, (800, 450), (800, 55), (0, 0, 255), 1)
 
         # Initialize the best contour to none, then search for the best one
         contoursInAOI = []
-        foundContour = False
         bestCenter = None
         if len(cnts) > 0:
             bestContour = None
@@ -55,9 +71,7 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
                 ((x, y), radius) = cv2.minEnclosingCircle(c)
                 M = cv2.moments(c)
                 center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-                if center[0] > 120 and center[0] < 800 and center[1] > 55 and center[1] < 450 and cv2.contourArea(c) < 550:
-                    foundContour = True
-                    #print(cv2.contourArea(c))
+                if center[0] > 140 and center[0] < 800 and center[1] > 55 and center[1] < 450 and cv2.contourArea(c) < maxContourSize:
                     contoursInAOI.append(c)
                     if bestContour is None or cv2.contourArea(bestContour) <= cv2.contourArea(c):
                         bestContour = c
@@ -76,12 +90,13 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
             print("No Ball Found")
         """
 
-        # Update the list of centers, removing the oldest one every 3 frames if
-        # there are more than 10 stored.
+        # Update the list of centers, removing the oldest one every 10 frames if
+        # there is more than 1 stored.
         if bestCenter:
-            if len(pts) < 2 or abs(bestCenter[0] - pts[-1][0]) > 3 or abs(bestCenter[1] - pts[-1][1]) > 3:
+            lastX = bestCenter[0]
+            if len(pts) < 2 or sqrt(((bestCenter[0] - pts[-1][0]) ** 2) + ((bestCenter[1] - pts[-1][1])) ** 2) > 7:
                 pts.appendleft(bestCenter)
-        if frameNum == 3:
+        if frameNum == 10:
             if len(pts) > 2:
                 pts.pop()
             frameNum = 0
@@ -94,12 +109,14 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
 
         # Calculate the average change in x per change in y in order to predict
         # the ball's path
+        xAvg = 0
+        yAvg = 0
         if len(pts) > 1:
-            xAvg = 0
-            yAvg = 0
             for i in range(len(pts) - 1):
                 yAvg += (pts[i][1] - pts[i + 1][1])
                 xAvg += (pts[i][0] - pts[i + 1][0])
+            
+            xSpeed = xAvg / (len(pts) - 1)
 
             if bestCenter:
                 cv2.arrowedLine(frame, (bestCenter[0], bestCenter[1]), (round(bestCenter[0] + xAvg), round(bestCenter[1] + yAvg)), (255, 0, 0), 5)
@@ -109,15 +126,33 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
             else:
                 yAvg = 0
             endY = pts[-1][1] + (yAvg * (800 - pts[-1][0]))
-
-        if draw:
-            # Draw a circle where the ball is expected to cross the goal line
-            cv2.circle(frame, (800, max(min(round(endY), 450), 55)), 10, (255, 0, 0), -1)
-
-            # Display the current frame
-            cv2.imshow("Frame", frame)
-            cv2.imshow("Mask", mask)
-            key = cv2.waitKey(1) & 0xFF
+            
+        # Logic to choose what move command to send.
+        # If the calculated x component of speed implies that ball will
+        #   cross goal line within the next 60 frames, send the predicted
+        #   y position, else send the current y position
+        if bestCenter:
+            posToSend = lastPosSent
+            if bestCenter[0] + (xSpeed * sendMoveFrameThresh) >= 800:
+                posToSend = max(min(round(endY), 450), 55) if abs(lastPosSent - max(min(round(endY), 450), 55)) >= 10 else lastPosSent
+                #cv2.circle(frame, (800, max(min(round(endY), 450), 55)), 10, (255, 0, 0), -1)
+            else:
+                posToSend = bestCenter[1] if abs(lastPosSent - bestCenter[1]) >= 10 else lastPosSent
+                #cv2.circle(frame, (800, bestCenter[1]), 10, (255, 0, 0), -1)
+            cv2.circle(frame, (800, posToSend), 10, (255, 0, 0), -1)
+            
+        # Logic to send kick command
+        if lastX + (kickFrameDelay * xSpeed) >= 800 and ballReset:
+            print("Kick")
+            ballReset = False
+            
+        # Detect when ball is reset to allow kick command to be sent again
+        if bestCenter and bestCenter[0] < 200:
+            ballReset = True
+            
+        cv2.imshow("Frame", frame)
+        cv2.imshow("Mask", mask)
+        key = cv2.waitKey(1) & 0xFF
 
 if __name__ == "__main__":
     # Configure depth and color streams
