@@ -5,3 +5,4 @@ imutils~=0.5.4
 pyserial~=3.5
 roboclaw~=1.0.0.dev1
 pydantic~=1.10.5
+python-dotenv~=1.0.0

@@ -34,14 +34,16 @@ class Frontend(tk.Tk):
         self.predicted_ball_var.set("Predicted Ball Pixels (). Predicted Ball MM ().")
         self.goalie_ball_position_label = tk.Label(self, textvariable=self.predicted_ball_var, font=("Helvetica", 20))
         self.goalie_ball_position_label.grid(row=2, column=0, sticky="NSWE", columnspan=2)
-        self.home_button = tk.Button(self, text="Home", command=self.home)
-        self.home_button.grid(row=3, column=0)
+        self.home_m1_button = tk.Button(self, text="Home M1", command=self.home_m1)
+        self.home_m1_button.grid(row=3, column=0)
+        self.home_m2_button = tk.Button(self, text="Home M2", command=self.home_m2)
+        self.home_m2_button.grid(row=3, column=1)
         self.move_to_default_button = tk.Button(self, text="Move to Default", command=self.backend.move_to_default)
         self.move_to_default_button.grid(row=4, column=0)
 
         self.start_ball_tracking_button = tk.Button(self, text="Start",
                                                     command=lambda: self.start_ball_tracking())
-        self.start_ball_tracking_button.grid(row=3, column=1)
+        self.start_ball_tracking_button.grid(row=4, column=1)
 
         def backend_helper():
             self.backend.event_loop()
@@ -54,9 +56,11 @@ class Frontend(tk.Tk):
                             "Make sure that there are no obstructions on the playing field before pressing Ok.")
         self.backend.start_ball_tracking()
 
-    def home(self):
-        messagebox.showinfo("Home", "Make sure that the players are facing down before pressing OK.")
-        self.backend.home()
+    def home_m1(self):
+        self.backend.home_m1()
+
+    def home_m2(self):
+        self.backend.home_m2()
 
     def update_encoder_positions(self, data):
         self.encoder_var.set(

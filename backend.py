@@ -1,3 +1,4 @@
+import multiprocessing
 import queue
 from camera.camera_manager import CameraManager
 from motors.motor_manager import MotorManager
@@ -14,7 +15,6 @@ if TYPE_CHECKING:
 from subscriber_publisher import Publisher
 
 
-
 class Backend(object):
     def __init__(self):
         self.queue_from_camera = Queue()
@@ -22,25 +22,25 @@ class Backend(object):
         self.queue_to_camera = Queue()
         self.queue_to_motors = Queue()
         self.frontend: Optional[Frontend] = None
-        self.publisher = Publisher(events=[FrontendEvent.ENCODER_VALS, FrontendEvent.CURRENT_BALL_POS, FrontendEvent.PREDICTED_BALL_POS, FrontendEvent.ERROR])
+        self.publisher = Publisher(
+            events=[FrontendEvent.ENCODER_VALS, FrontendEvent.CURRENT_BALL_POS, FrontendEvent.PREDICTED_BALL_POS,
+                    FrontendEvent.ERROR])
         self.active_threads = []
 
         try:
             self.motor_manager = MotorManager()
         except Exception as e:
-            print(traceback.format_exc())
             self.publisher.publish(FrontendEvent.ERROR, e)
-            return
+            raise e
         self.start_motors_event_loop()
         try:
             self.camera_manager = CameraManager()
         except Exception as e:
-            print(traceback.format_exc())
-            print(e)
+            # print(traceback.format_exc())
+            # print(e)
             self.publisher.publish(FrontendEvent.ERROR, e)
-            return
+            raise e
         self.start_camera_event_loop()
-
 
     def _read_motors(self):
         try:
@@ -75,14 +75,17 @@ class Backend(object):
         self._read_motors()
 
     def start_camera_event_loop(self):
-        self.active_threads.append(threading.Thread(target=self.camera_manager.event_loop, args=(self.queue_to_camera, self.queue_from_camera)).start())
+        self.active_threads.append(multiprocessing.Process(target=self.camera_manager.event_loop,
+                                                    args=(self.queue_to_camera, self.queue_from_camera)).start())
 
     def start_motors_event_loop(self):
-        self.active_threads.append(threading.Thread(target=self.motor_manager.event_loop, args=(self.queue_to_motors,  self.queue_from_motors)).start())
+        self.active_threads.append(threading.Thread(target=self.motor_manager.event_loop,
+                                                    args=(self.queue_to_motors, self.queue_from_motors)).start())
 
-
-    def home(self):
+    def home_m1(self):
         self.queue_to_motors.put_nowait((MotorEvent.HOME_M1, None))
+
+    def home_m2(self):
         self.queue_to_motors.put_nowait((MotorEvent.HOME_M2, None))
 
     def start_ball_tracking(self):
@@ -90,5 +93,3 @@ class Backend(object):
 
     def move_to_default(self):
         self.queue_to_motors.put_nowait((MotorEvent.MOVE_TO_START_POS, None))
-
-

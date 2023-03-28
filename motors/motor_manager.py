@@ -6,14 +6,22 @@ from motors.roboclaw import Roboclaw
 import serial.tools.list_ports
 from motors.motor_measurements import MotorMeasurements
 from other.events import MotorEvent
+from dotenv import load_dotenv
+import os
+load_dotenv()
+SERIAL_PORT = os.getenv("SERIAL_PORT")
+
 
 
 class MotorManager:
-    def __init__(self, serial_port: str = "COM5"):
+    def __init__(self):
         # Since only one roboclaw is being used, default address is 0x80.
         self.address = 0x80
         # Initialize roboclaw object.
-        self.roboclaw: Roboclaw = Roboclaw(serial_port, 38400)
+
+        if SERIAL_PORT is None:
+            raise Exception("SERIAL_PORT not set in .env file. Create .env file in root directory and set SERIAL_PORT.")
+        self.roboclaw: Roboclaw = Roboclaw(SERIAL_PORT, 38400)
         self.roboclaw.Open()
         """
         Shouldn't be necessary once the second limit switch is installed.
@@ -97,7 +105,6 @@ class MotorManager:
             time.sleep(0.4)
             if self.roboclaw.ReadSpeedM1(self.address)[1] == 0:
                 self.stop()
-                self.roboclaw.SetEncM1(self.address, 0)
                 break
 
         # This line is not necessary because the encoder is reset to 0 when the motor triggers the limit switch.
@@ -116,7 +123,15 @@ class MotorManager:
         Reads connected serial ports, useful to identify what port the roboclaw is connected to.
         :return:
         """
-        return [comport.device for comport in serial.tools.list_ports.comports()]
+        ports = list(serial.tools.list_ports.comports())
+        for p in ports:
+            print(p.manufacturer)
+            print(p.device)
+            print(p.description)
+            print()
+
+
+
 
     def read_encoders(self):
         """
@@ -280,4 +295,4 @@ class MotorManager:
 
 
 if __name__ == "__main__":
-    print(MotorManager.read_serial_ports())
+    MotorManager.read_serial_ports()
