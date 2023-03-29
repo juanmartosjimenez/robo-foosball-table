@@ -3,6 +3,7 @@ import queue
 import time
 from collections import deque
 from typing import Optional
+from math import sqrt
 
 import cv2
 import imutils
@@ -72,12 +73,28 @@ class CameraManager:
         return lower_hsv, higher_hsv
 
     def start_ball_tracking(self):
+        # -----Constants-----
+        # If algo predicts that it will take this many frames or less for ball to
+        #   cross goal line, send move command to predicted position, else send
+        #   current position
+        sendMoveFrameThresh = 60
+
+        # The maximum size that a contour can be to considered a ball by algo
+        maxContourSize = 1000
+
+        # The number of frames before the ball is predicted to pass the goalie
+        #   that the kick command will be sent (0 means command will be sent right
+        #   when ball reaches goalie)
+        kickFrameDelay = 5
+
         # Define the lower and upper HSV boundaries of the foosball and initialize
         # the list of center points
         # colorMaskLower = (0, 62, 123)
         # colorMaskUpper = (15, 253, 255)
         color_mask_lower = (0, 91, 170)
         color_mask_upper = (2, 174, 255)
+        colorMaskLower = (0, 90, 177)
+        colorMaskUpper = (210, 195, 255)
         pts = deque(maxlen=10)
 
         # Initialize variables and loop to continuously get and process video
@@ -85,6 +102,12 @@ class CameraManager:
         frame_num = 0
         frame_count = 0
         start_time = time.time()
+        endY = 250
+        lastPosSent = 250
+        frameNum = 0
+        xSpeed = 0
+        lastX = 0
+        ballReset = True
         while True:
             if self.stop_flag.is_set():
                 return
@@ -115,14 +138,13 @@ class CameraManager:
             cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cnts = imutils.grab_contours(cnts)
 
-            cv2.line(frame, (120, 55), (800, 55), (0, 0, 255), 1)
-            cv2.line(frame, (120, 55), (120, 450), (0, 0, 255), 1)
-            cv2.line(frame, (120, 450), (800, 450), (0, 0, 255), 1)
+            cv2.line(frame, (140, 55), (800, 55), (0, 0, 255), 1)
+            cv2.line(frame, (140, 55), (140, 450), (0, 0, 255), 1)
+            cv2.line(frame, (140, 450), (800, 450), (0, 0, 255), 1)
             cv2.line(frame, (800, 450), (800, 55), (0, 0, 255), 1)
 
             # Initialize the best contour to none, then search for the best one
             contoursInAOI = []
-            foundContour = False
             bestCenter = None
             if len(cnts) > 0:
                 bestContour = None
@@ -131,10 +153,8 @@ class CameraManager:
                     ((x, y), radius) = cv2.minEnclosingCircle(c)
                     M = cv2.moments(c)
                     center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-                    if center[0] > 120 and center[0] < 800 and center[1] > 55 and center[1] < 450 and cv2.contourArea(
-                            c) < 550:
-                        foundContour = True
-                        # print(cv2.contourArea(c))
+                    if center[0] > 140 and center[0] < 800 and center[1] > 55 and center[1] < 450 and cv2.contourArea(
+                            c) < maxContourSize:
                         contoursInAOI.append(c)
                         if bestContour is None or cv2.contourArea(bestContour) <= cv2.contourArea(c):
                             bestContour = c
@@ -142,23 +162,22 @@ class CameraManager:
 
                 cv2.drawContours(frame, contoursInAOI, -1, (255, 0, 0), 10)
                 cv2.drawContours(frame, cnts, -1, (0, 255, 0), 3)
-            # If found a contour in the area of interest, find and set the center
-            if bestCenter:
-                print(bestCenter)
 
-            # Update the list of centers, removing the oldest one every 3 frames if
-            # there are more than 10 stored.
+            # Update the list of centers, removing the oldest one every 10 frames if
+            # there is more than 1 stored.
             if bestCenter:
                 # TODO delete this not using the predicted trajectory for now.
                 #self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (bestCenter[1], bestCenter[0]),
                                                                              #"mm": self.convert_pixels_to_mm_playing_field(
                                                                                  #bestCenter[1], bestCenter[0])}))
+                lastX = bestCenter[0]
                 self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (bestCenter[1], bestCenter[0]),
                                                                            "mm": self.convert_pixels_to_mm_playing_field(
                                                                                bestCenter[1], bestCenter[0])}))
-                if len(pts) < 2 or abs(bestCenter[0] - pts[-1][0]) > 3 or abs(bestCenter[1] - pts[-1][1]) > 3:
+                if len(pts) < 2 or sqrt(((bestCenter[0] - pts[-1][0]) ** 2) + ((bestCenter[1] - pts[-1][1])) ** 2) > 7:
                     pts.appendleft(bestCenter)
             if frame_num == 3:
+            if frameNum == 10:
                 if len(pts) > 2:
                     pts.pop()
                 frame_num = 0
@@ -170,16 +189,17 @@ class CameraManager:
 
             # Calculate the average change in x per change in y in order to predict
             # the ball's path
+            xAvg = 0
+            yAvg = 0
             if len(pts) > 1:
-                xAvg = 0
-                yAvg = 0
                 for i in range(len(pts) - 1):
                     yAvg += (pts[i][1] - pts[i + 1][1])
                     xAvg += (pts[i][0] - pts[i + 1][0])
 
+                xSpeed = xAvg / (len(pts) - 1)
+
                 if bestCenter:
-                    cv2.arrowedLine(frame, (bestCenter[0], bestCenter[1]),
-                                    (round(bestCenter[0] + xAvg), round(bestCenter[1] + yAvg)), (255, 0, 0), 5)
+                    cv2.arrowedLine(frame, (bestCenter[0], bestCenter[1]), (round(bestCenter[0] + xAvg), round(bestCenter[1] + yAvg)), (255, 0, 0), 5)
 
                 if xAvg > 0:
                     yAvg = yAvg / xAvg
@@ -194,6 +214,32 @@ class CameraManager:
 
             # Draw a circle where the ball is expected to cross the goal line
             cv2.circle(frame, (800, max(min(round(end_y), 450), 55)), 10, (255, 0, 0), -1)
+
+            # Logic to choose what move command to send.
+            # If the calculated x component of speed implies that ball will
+            #   cross goal line within the next 60 frames, send the predicted
+            #   y position, else send the current y position
+            if bestCenter:
+                posToSend = lastPosSent
+                if bestCenter[0] + (xAvg * sendMoveFrameThresh) >= 800:
+                    posToSend = max(min(round(endY), 450), 55) if abs(lastPosSent - max(min(round(endY), 450), 55)) >= 10 else lastPosSent
+                else:
+                    posToSend = bestCenter[1] if abs(lastPosSent - bestCenter[1]) >= 10 else lastPosSent
+                cv2.circle(frame, (800, posToSend), 10, (255, 0, 0), -1)
+                if posToSend != lastPosSent:
+                    self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (posToSend, 540),
+                                                                                     "mm": self.convert_pixels_to_mm_playing_field(
+                                                                                         posToSend, 540)}))
+
+            # Logic to send kick command
+            if lastX + (kickFrameDelay * xSpeed) >= 800 and ballReset:
+                # TODO: Replace with sending kick event
+                print("Kick")
+                ballReset = False
+
+            # Detect when ball is reset to allow kick command to be sent again
+            if bestCenter and bestCenter[0] < 200:
+                ballReset = True
 
             # Display the current frame
             cv2.imshow("Frame", frame)
