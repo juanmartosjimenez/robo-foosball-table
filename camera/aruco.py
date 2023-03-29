@@ -52,7 +52,6 @@ def pose_estimation(ids, corners, intrinsics, rgb_frame = None):
     # Bottom right 3
     # Bottom left 4
     print(np.linalg.norm(vecs[camera_measurements.id_aruco_playing_field_bottom][1] - vecs[camera_measurements.id_aruco_playing_field_top][1]))
-    print("here")
 
 
 def detect_markers(rgb_frame: np.array) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

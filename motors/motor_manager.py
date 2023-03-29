@@ -1,3 +1,4 @@
+import multiprocessing
 import queue
 import time
 import sys
@@ -8,13 +9,13 @@ from motors.motor_measurements import MotorMeasurements
 from other.events import MotorEvent
 from dotenv import load_dotenv
 import os
+
 load_dotenv()
 SERIAL_PORT = os.getenv("SERIAL_PORT")
 
 
-
 class MotorManager:
-    def __init__(self):
+    def __init__(self, stop_flag: multiprocessing.Event, queue_to_motors: multiprocessing.Queue, queue_from_motors: multiprocessing.Queue):
         # Since only one roboclaw is being used, default address is 0x80.
         self.address = 0x80
         # Initialize roboclaw object.
@@ -31,18 +32,27 @@ class MotorManager:
         """
         self.right_limit = 1600
         # Initialize motor measurements.
+        self.stop_flag: multiprocessing.Event = stop_flag
         self.measurements = MotorMeasurements()
+        self.queue_to_motors = queue_to_motors
+        self.queue_from_motors = queue_from_motors
 
-    def event_loop(self, queue_to_motors, queue_from_motors):
+    def event_loop(self):
         """
         Event loop for the motor manager.
         :return:
         """
         start_time = time.time()
         while True:
-            time.sleep(0.01)
+            if self.stop_flag.is_set():
+                try:
+                    self.stop()
+                except Exception as e:
+                    pass
+                return
             try:
-                data = queue_to_motors.get_nowait()
+                time.sleep(0.01)
+                data = self.queue_to_motors.get_nowait()
                 event = data[0]
                 if event == MotorEvent.HOME_M1:
                     self.home_m1()
@@ -54,10 +64,11 @@ class MotorManager:
                     self.stop()
                 elif event == MotorEvent.ENCODER_VALS:
                     encoder_val = self.read_encoders()
-                    queue_from_motors.put_nowait((MotorEvent.ENCODER_VALS, {"encoders": encoder_val,
-                                                                    "mm_m1": self._encoder_to_mm_m1(encoder_val[0]),
-                                                                    "degrees_m2": self._encoder_to_degrees_m2(
-                                                                        encoder_val[0])}))
+                    self.queue_from_motors.put_nowait((MotorEvent.ENCODER_VALS, {"encoders": encoder_val,
+                                                                            "mm_m1": self._encoder_to_mm_m1(
+                                                                                encoder_val[0]),
+                                                                            "degrees_m2": self._encoder_to_degrees_m2(
+                                                                                encoder_val[0])}))
                 elif event == MotorEvent.STRIKE:
                     self.strike()
                 elif event == MotorEvent.MOVE_TO_START_POS:
@@ -68,7 +79,7 @@ class MotorManager:
             except queue.Empty:
                 if time.time() - start_time > 1:
                     # Every 1 seconds, read the encoders.
-                    queue_to_motors.put_nowait((MotorEvent.ENCODER_VALS, None))
+                    self.queue_to_motors.put_nowait((MotorEvent.ENCODER_VALS, None))
                     start_time = time.time()
                 pass
 
@@ -129,9 +140,6 @@ class MotorManager:
             print(p.device)
             print(p.description)
             print()
-
-
-
 
     def read_encoders(self):
         """
@@ -283,9 +291,9 @@ class MotorManager:
         mm_distance_to_goalie_2 = 315
         mm_distance_to_goalie_1 = 95
         mm_distance_to_goalie_3 = 535
-        mm_goalie_2_movement = self._mm_to_encoder_m1(mm-mm_distance_to_goalie_2)
-        mm_goalie_1_movement = self._mm_to_encoder_m1(mm-mm_distance_to_goalie_1)
-        mm_goalie_3_movement = self._mm_to_encoder_m1(mm-mm_distance_to_goalie_3)
+        mm_goalie_2_movement = self._mm_to_encoder_m1(mm - mm_distance_to_goalie_2)
+        mm_goalie_1_movement = self._mm_to_encoder_m1(mm - mm_distance_to_goalie_1)
+        mm_goalie_3_movement = self._mm_to_encoder_m1(mm - mm_distance_to_goalie_3)
         if 0 < mm_goalie_2_movement < self.measurements.m1_encoder_limit:
             self.move_to_pos_m1(mm_goalie_2_movement)
         elif mm_goalie_2_movement < 0:

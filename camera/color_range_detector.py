@@ -65,11 +65,13 @@ def main():
 
     if args['image']:
         image = cv2.imread(args['image'])
+        image = cv2.GaussianBlur(image, (5, 5), 0)
 
         if range_filter == 'RGB':
             frame_to_thresh = image.copy()
         else:
             frame_to_thresh = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
     else:
         print("initializing realsense")
         config = rs.config()

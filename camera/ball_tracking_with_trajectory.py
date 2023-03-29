@@ -27,7 +27,7 @@ def ball_tracking(pipe: rs.pipeline, draw: bool = False):
 
         # Resize and blur the frame, then convert to HSV
         #frame = imutils.resize(frame, width=600)
-        blurred = cv2.GaussianBlur(frame, (11, 11), 0)
+        blurred = cv2.GaussianBlur(frame, (5, 5), 0)
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
         # Construct color mask, then erode and dilate to clean up extraneous

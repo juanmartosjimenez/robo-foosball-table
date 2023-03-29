@@ -19,7 +19,7 @@ class CameraManager:
     Class to interface with the camera
     """
 
-    def __init__(self):
+    def __init__(self, stop_flag: multiprocessing.Event, queue_to_camera: multiprocessing.Queue, queue_from_camera: multiprocessing.Queue):
         # Start the camera pipe
         self.pipe: Optional[rs.pipeline] = None
         self.camera_measurements = CameraMeasurements()
@@ -31,6 +31,9 @@ class CameraManager:
         # Calculate ratio of pixels to mm
         self.pixel_to_mm_x, self.pixel_to_mm_y, self.playing_field_pixel_to_mm_x, self.playing_field_pixel_to_mm_y = get_pixel_to_mm(
             self.corners, self.ids)
+        self.stop_flag: multiprocessing.Event = stop_flag
+        self.queue_to_camera: Optional[multiprocessing.Queue] = queue_to_camera
+        self.queue_from_camera: Optional[multiprocessing.Queue] = queue_from_camera
 
     def draw_aruco_markers(self):
         # Draw the aruco markers
@@ -38,16 +41,19 @@ class CameraManager:
         cv2.imshow("aruco", self.rgb_frame)
         cv2.waitKey(1)
 
-    def event_loop(self, queue_to_camera: multiprocessing.Queue, queue_from_camera: multiprocessing.Queue):
-        self.queue_to_camera = queue_to_camera
-        self.queue_from_camera = queue_from_camera
+    def event_loop(self):
         while True:
-            time.sleep(0.01)
+            if self.stop_flag.is_set():
+                try:  # Try to close the pipe
+                    self.pipe.stop()
+                except:
+                    pass
+                return
             try:
-                data = queue_to_camera.get_nowait()
+                data = self.queue_to_camera.get_nowait()
                 event = data[0]
                 if event == CameraEvent.START_BALL_TRACKING:
-                    queue_from_camera.put(("message", "Ball tracking started"))
+                    self.queue_from_camera.put(("message", "Ball tracking started"))
                     self.start_ball_tracking()
                 else:
                     raise ValueError(f"Unknown camera_manager event {str(data)}")
@@ -70,15 +76,25 @@ class CameraManager:
         # the list of center points
         # colorMaskLower = (0, 62, 123)
         # colorMaskUpper = (15, 253, 255)
-        colorMaskLower = (0, 91, 170)
-        colorMaskUpper = (2, 174, 255)
+        color_mask_lower = (0, 91, 170)
+        color_mask_upper = (2, 174, 255)
         pts = deque(maxlen=10)
 
         # Initialize variables and loop to continuously get and process video
-        endY = 250
-        frameNum = 0
+        end_y = 250
+        frame_num = 0
+        frame_count = 0
+        start_time = time.time()
         while True:
-            frameNum += 1
+            if self.stop_flag.is_set():
+                return
+            if time.time() - start_time > 1:
+                self.queue_from_camera.put((CameraEvent.FPS, frame_count))
+                frame_count = 0
+                start_time = time.time()
+
+            frame_count += 1
+            frame_num += 1
 
             # Get the RealSense frame to be processed by OpenCV
             frame = self.read_color_frame()
@@ -92,7 +108,7 @@ class CameraManager:
 
             # Construct color mask, then erode and dilate to clean up extraneous
             # contours
-            mask = cv2.inRange(hsv, colorMaskLower, colorMaskUpper)
+            mask = cv2.inRange(hsv, color_mask_lower, color_mask_upper)
             mask = cv2.dilate(mask, None, iterations=2)
 
             # Find all contours in the mask and initialize the center
@@ -133,19 +149,19 @@ class CameraManager:
             # Update the list of centers, removing the oldest one every 3 frames if
             # there are more than 10 stored.
             if bestCenter:
-                #TODO delete this not using the predicted trajectory for now.
-                self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (bestCenter[1], bestCenter[0]),
-                                                                             "mm": self.convert_pixels_to_mm_playing_field(
-                                                                                 bestCenter[1], bestCenter[0])}))
+                # TODO delete this not using the predicted trajectory for now.
+                #self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (bestCenter[1], bestCenter[0]),
+                                                                             #"mm": self.convert_pixels_to_mm_playing_field(
+                                                                                 #bestCenter[1], bestCenter[0])}))
                 self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (bestCenter[1], bestCenter[0]),
                                                                            "mm": self.convert_pixels_to_mm_playing_field(
                                                                                bestCenter[1], bestCenter[0])}))
                 if len(pts) < 2 or abs(bestCenter[0] - pts[-1][0]) > 3 or abs(bestCenter[1] - pts[-1][1]) > 3:
                     pts.appendleft(bestCenter)
-            if frameNum == 3:
+            if frame_num == 3:
                 if len(pts) > 2:
                     pts.pop()
-                frameNum = 0
+                frame_num = 0
 
             # Visually connect all the stored center points with lines
             for i in range(1, len(pts)):
@@ -169,15 +185,15 @@ class CameraManager:
                     yAvg = yAvg / xAvg
                 else:
                     yAvg = 0
-                endY = pts[-1][1] + (yAvg * (800 - pts[-1][0]))
+                end_y = pts[-1][1] + (yAvg * (800 - pts[-1][0]))
 
-                #TODO uncomment
-                #self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (endY, 540),
+                # TODO uncomment
+                # self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (endY, 540),
                 #                                                             "mm": self.convert_pixels_to_mm_playing_field(
                 #                                                                 endY, 540)}))
 
             # Draw a circle where the ball is expected to cross the goal line
-            cv2.circle(frame, (800, max(min(round(endY), 450), 55)), 10, (255, 0, 0), -1)
+            cv2.circle(frame, (800, max(min(round(end_y), 450), 55)), 10, (255, 0, 0), -1)
 
             # Display the current frame
             cv2.imshow("Frame", frame)
@@ -246,13 +262,13 @@ class CameraManager:
                 # Have to add the white padding behind the aruco marker.
                 playing_field_bottom_x = self.corners[ii][:, 0][0][0] + pixel_aruco_padding
 
-        #cv2.circle(self.rgb_frame, (int(playing_field_bottom_x), int(playing_field_bottom_y)), 10, (255, 0, 0), -1)
+        # cv2.circle(self.rgb_frame, (int(playing_field_bottom_x), int(playing_field_bottom_y)), 10, (255, 0, 0), -1)
         # show frame
-
 
         # print(playing_field_bottom_x)
         # Camera 0 pixel is at the top right so subtract camera resolution to get bottom right point.
-        out = round((self.camera_measurements.camera_resolution_x - x - (self.camera_measurements.camera_resolution_x - playing_field_bottom_x)) / self.playing_field_pixel_to_mm_x,
+        out = round((self.camera_measurements.camera_resolution_x - x - (
+                    self.camera_measurements.camera_resolution_x - playing_field_bottom_x)) / self.playing_field_pixel_to_mm_x,
                     2), round((y - playing_field_bottom_y) / self.playing_field_pixel_to_mm_y, 2)
         return out
 
