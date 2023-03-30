@@ -96,7 +96,6 @@ def detect_markers(rgb_frame: np.array) -> tuple[np.ndarray, np.ndarray, np.ndar
 
 
 def get_pixel_to_mm(corners, ids):
-    top_right = None
     playing_field_bottom = None
     playing_field_top = None
     bottom_right = None
@@ -104,10 +103,6 @@ def get_pixel_to_mm(corners, ids):
     for ii, id in enumerate(ids):
         if ids[ii] == camera_measurements.id_aruco_bottom_left:
             bottom_left = corners[ii][:, 0]
-        elif ids[ii] == camera_measurements.id_aruco_top_left:
-            top_left = corners[ii][0]
-        elif ids[ii] == camera_measurements.id_aruco_top_right:
-            top_right = corners[ii][0]
         elif ids[ii] == camera_measurements.id_aruco_bottom_right:
             bottom_right = corners[ii][:, 0]
         elif ids[ii] == camera_measurements.id_aruco_playing_field_top:
@@ -117,25 +112,17 @@ def get_pixel_to_mm(corners, ids):
 
     # Calculate the number of pixels from the corners of the ArUco markers.
     y_diff = (bottom_right - bottom_left)[0, 0]
-    x_diff = (bottom_right - top_right)[0, 1]
     x_diff_playing_field = (playing_field_bottom - playing_field_top)[0, 1]
-    print(x_diff, "x_diff")
-    print(y_diff, "y_diff")
-    print(x_diff_playing_field, "x_diff_playing_field")
     # Have to take into account the white padding surrounding the marker
-    x_length_mm = camera_measurements.mm_playing_field_width
-    y_length_mm = camera_measurements.mm_playing_field_length
-    # x_length_mm -= camera_measurements.mm_aruco_padding*2
+    x_length_mm = camera_measurements.mm_playing_field_x
+    y_length_mm = camera_measurements.mm_playing_field_y
     y_length_mm += camera_measurements.mm_aruco_padding*2 + camera_measurements.y_perspective_compensation*2
-    pixel_to_mm_x = x_diff / x_length_mm
     pixel_to_mm_y = y_diff / y_length_mm
     playing_field_pixel_to_mm_x = x_diff_playing_field / x_length_mm
-    print("Pixel to mm x: {}".format(pixel_to_mm_x))
-    print("Pixel to mm y: {}".format(pixel_to_mm_y))
     print("Playing field pixel to mm x: {}".format(playing_field_pixel_to_mm_x))
     print("Playing field pixel to mm y: {}".format(pixel_to_mm_y))
     # TODO pixel_to_mm_y is not correct, should be playing_field_pixel_to_mm_x
-    return pixel_to_mm_x, pixel_to_mm_y, playing_field_pixel_to_mm_x, pixel_to_mm_y
+    return playing_field_pixel_to_mm_x, pixel_to_mm_y
 
 
 if __name__ == "__main__":

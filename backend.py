@@ -62,6 +62,8 @@ class Backend(object):
             elif event == MotorEvent.ERROR:
                 self.stop_flag.set()
                 self.publisher.publish(FrontendEvent.ERROR, data)
+            elif event == MotorEvent.STRIKE:
+                pass
         except queue.Empty:
             return
 
@@ -81,6 +83,8 @@ class Backend(object):
                 self.publisher.publish(FrontendEvent.ERROR, data)
             elif event == CameraEvent.FPS:
                 self.publisher.publish(FrontendEvent.FPS, data)
+            elif event == CameraEvent.STRIKE:
+                self.queue_to_motors.put_nowait((MotorEvent.STRIKE, None))
             else:
                 print(f"Unknown read_camera event: {str(queue_data)}")
         except queue.Empty:

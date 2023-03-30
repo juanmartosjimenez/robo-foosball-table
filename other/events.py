@@ -29,4 +29,5 @@ class CameraEvent(Enum):
     PREDICTED_BALL_POS = 3
     ERROR = 4
     FPS = 5
+    STRIKE = 6
 
