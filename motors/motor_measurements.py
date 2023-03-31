@@ -9,7 +9,7 @@ measurements = {"ENC_M2_360_ROTATION": 145,
                 "ENC_M2_STRIKE": 110,
                 "ENC_M1_DEFAULT": 667,
                 "MM_TO_ENC_M1": 13,
-                "M1_ENCODER_LIMIT": 1600,
+                "M1_ENCODER_LIMIT": 1910,
                 "M2_ENCODER_LIMIT": 2000}
 
 

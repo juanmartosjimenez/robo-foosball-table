@@ -16,7 +16,7 @@ measurements = {"MM_ARUCO_PADDING": 10,
                 "MM_PLAYING_FIELD_Y": 631,
                 "CAMERA_RESOLUTION_Y": 540,
                 "CAMERA_RESOLUTION_X": 960,
-                "CAMERA_FPS": 60,
+                "CAMERA_FPS": 30,
                 "Y_PERSPECTIVE_COMPENSATION": 20}
 
 

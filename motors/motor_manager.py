@@ -288,18 +288,21 @@ class MotorManager:
         # mm_space_to_encoder_0_position = 25
         # mm_distance_to_golie = 264
         # Ideally this is a measurable value but there is some uncertainty with the ball playing field pixels.
-        mm_distance_to_goalie_2 = 248
-        mm_distance_to_goalie_1 = 75
+        mm_distance_to_goalie_2 = 240
+        mm_distance_to_goalie_1 = 35
         mm_distance_to_goalie_3 = 445
         mm_goalie_2_movement = self._mm_to_encoder_m1(mm - mm_distance_to_goalie_2)
         mm_goalie_1_movement = self._mm_to_encoder_m1(mm - mm_distance_to_goalie_1)
         mm_goalie_3_movement = self._mm_to_encoder_m1(mm - mm_distance_to_goalie_3)
-        if 0 < mm_goalie_2_movement < self.measurements.m1_encoder_limit:
-            self.move_to_pos_m1(mm_goalie_2_movement)
-        elif mm_goalie_2_movement < 0:
-            self.move_to_pos_m1(mm_goalie_1_movement)
+        if -650 < mm_goalie_2_movement < self.measurements.m1_encoder_limit + 150:
+            print("goalie2 moving")
+            #self.move_to_pos_m1(mm_goalie_2_movement)
+        elif mm_goalie_2_movement < -650:
+            print("goalie1 moving")
+            #self.move_to_pos_m1(mm_goalie_1_movement)
         elif mm_goalie_2_movement > self.measurements.m1_encoder_limit:
-            self.move_to_pos_m1(mm_goalie_3_movement)
+            print("goalie3 moving")
+            #self.move_to_pos_m1(mm_goalie_3_movement)
 
 
 if __name__ == "__main__":

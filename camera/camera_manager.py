@@ -104,8 +104,11 @@ class CameraManager:
 
         # Define the lower and upper HSV boundaries of the foosball and initialize
         # the list of center points
-        color_mask_lower = (0, 189, 132)
-        color_mask_upper = (7, 255, 255)
+        mask1_lower = (0, 167, 118)
+        mask1_upper = (10, 255, 255)
+        mask2_lower = (160, 142, 134)
+        mask2_upper = (255, 255, 255)
+
         pts = deque(maxlen=10)
 
         # Initialize variables and loop to continuously get and process video
@@ -148,7 +151,9 @@ class CameraManager:
 
             # Construct color mask, then erode and dilate to clean up extraneous
             # contours
-            mask = cv2.inRange(hsv, color_mask_lower, color_mask_upper)
+            mask1 = cv2.inRange(hsv, mask1_lower, mask1_upper)
+            mask2 = cv2.inRange(hsv, mask2_lower, mask2_upper)
+            mask = cv2.bitwise_or(mask1, mask2)
             cv2.imshow("region of interest", mask.copy())
             kernel = np.ones((3, 3), np.uint8)
             mask = cv2.erode(mask, kernel, iterations=1)
@@ -184,6 +189,8 @@ class CameraManager:
 
                 M = cv2.moments(best_contour)
                 best_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+                cv2.circle(frame, (self.goalie_x_pixel_position, best_center[1]), 10, (255, 0, 0), -1)
+                cv2.putText(frame, "Curr ball pos", (self.goalie_x_pixel_position, best_center[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
                 #cv2.drawContours(frame, [best_], -1, (255, 0, 0), 10)
                 #cv2.drawContours(frame, cnts, -1, (0, 255, 0), 3)
 
@@ -234,24 +241,24 @@ class CameraManager:
                 # self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (end_y, 540), "mm": self.convert_pixels_to_mm_playing_field(end_y, 540)}))
 
             # Draw a circle where the ball is expected to cross the goal line
-            cv2.circle(frame, (self.goalie_x_pixel_position, max(min(round(end_y), 450), 55)), 10, (255, 255, 0), -1)
-            cv2.putText(frame, "Predicted ball pos", (self.goalie_x_pixel_position, max(min(round(end_y), 450), 55)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+            #cv2.circle(frame, (self.goalie_x_pixel_position, max(min(round(end_y), 450), 55)), 10, (255, 255, 0), -1)
+            #cv2.putText(frame, "Predicted ball pos", (self.goalie_x_pixel_position, max(min(round(end_y), 450), 55)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
 
             # Logic to choose what move command to send.
             # If the calculated x component of speed implies that ball will
             #   cross goal line within the next 60 frames, send the predicted
             #   y position, else send the current y position
             if best_center:
-                posToSend = last_pos_sent
+                pos_to_send = last_pos_sent
                 if best_center[0] + (x_avg * send_move_frame_thresh) >= 800:
-                    posToSend = max(min(round(end_y), 450), 55) if abs(
+                    pos_to_send = max(min(round(end_y), 450), 55) if abs(
                         last_pos_sent - max(min(round(end_y), 450), 55)) >= 10 else last_pos_sent
                 else:
-                    posToSend = best_center[1] if abs(last_pos_sent - best_center[1]) >= 10 else last_pos_sent
+                    pos_to_send = best_center[1] if abs(last_pos_sent - best_center[1]) >= 10 else last_pos_sent
                 #cv2.circle(frame, (800, posToSend), 10, (255, 0, 0), -1)
                 #cv2.putText(frame, "Pos to send", (800, posToSend), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
 
-                if posToSend != last_pos_sent:
+                if pos_to_send != last_pos_sent:
                     pass
                     # TODO uncomment
                     # self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (posToSend, 540),
