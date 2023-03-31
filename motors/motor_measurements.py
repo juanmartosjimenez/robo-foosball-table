@@ -9,7 +9,7 @@ measurements = {"ENC_M2_360_ROTATION": 145,
                 "ENC_M2_STRIKE": 110,
                 "ENC_M1_DEFAULT": 667,
                 "MM_TO_ENC_M1": 13,
-                "MM_DISTANCE_TO_GOALIE_2": 315,
+                "MM_DISTANCE_TO_GOALIE_2": 260,
                 "M1_ENCODER_LIMIT": 1600,
                 "M2_ENCODER_LIMIT": 2000}
 

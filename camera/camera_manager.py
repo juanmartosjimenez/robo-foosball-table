@@ -16,6 +16,10 @@ import pyrealsense2 as rs
 from camera.camera_measurements import CameraMeasurements
 from other.events import CameraEvent
 
+# DATA FILES
+CORNERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/corners.json")
+GOALIE_Y_POS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/goalie_y_pos.json")
+
 
 class CameraManager:
     """
@@ -24,10 +28,11 @@ class CameraManager:
 
     def __init__(self, stop_flag: multiprocessing.Event = None, queue_to_camera: multiprocessing.Queue = None,
                  queue_from_camera: multiprocessing.Queue = None):
-        self.pixel_bottom_left_corner, self.pixel_top_left_corner, self.pixel_top_right_corner, self.pixel_bottom_right_corner = (None, None, None, None)
+        self.pixel_bottom_left_corner, self.pixel_top_left_corner, self.pixel_top_right_corner, self.pixel_bottom_right_corner = (
+        None, None, None, None)
         self.corners, self.ids, self.rejected = (None, None, None)
         self.pixel_to_mm_x, self.pixel_to_mm_y = (None, None)
-
+        self.goalie_y_pixel_position = None
 
         # Start the camera pipe
         self.pipe: Optional[rs.pipeline] = None
@@ -38,9 +43,10 @@ class CameraManager:
         # Read an RGB frame from the camera
         self.rgb_frame = self.read_color_frame()
         # Detect the field corners
-        self.detect_field_corners()
+        self.__detect_field_corners()
+        self.__detect_goalie()
         # Calculate the pixel to mm ratio
-        self.calculate_pixel_to_mm()
+        self.__calculate_pixel_to_mm()
         self.stop_flag: multiprocessing.Event = stop_flag
         self.queue_to_camera: Optional[multiprocessing.Queue] = queue_to_camera
         self.queue_from_camera: Optional[multiprocessing.Queue] = queue_from_camera
@@ -86,20 +92,20 @@ class CameraManager:
         # If algo predicts that it will take this many frames or less for ball to
         #   cross goal line, send move command to predicted position, else send
         #   current position
-        sendMoveFrameThresh = 60
+        send_move_frame_thresh = 60
 
         # The maximum size that a contour can be to considered a ball by algo
-        maxContourSize = 1000
+        max_contour_size = 1000
 
         # The number of frames before the ball is predicted to pass the goalie
         #   that the kick command will be sent (0 means command will be sent right
         #   when ball reaches goalie)
-        kickFrameDelay = 10
+        kick_frame_delay = 10
 
         # Define the lower and upper HSV boundaries of the foosball and initialize
         # the list of center points
-        color_mask_lower = (0, 91, 170)
-        color_mask_upper = (2, 174, 255)
+        color_mask_lower = (0, 189, 132)
+        color_mask_upper = (7, 255, 255)
         pts = deque(maxlen=10)
 
         # Initialize variables and loop to continuously get and process video
@@ -109,81 +115,88 @@ class CameraManager:
         last_pos_sent = 250
         frame_num = 0
         x_speed = 0
-        last_x = 0
+        last_y = 0
         ball_reset = True
         # Detect aruco markers
-        self.corners, self.ids, self.rejected = detect_markers(self.rgb_frame)
+        self.corners, self.ids, self.rejected = (None, None, None)
         # Calculate ratio of pixels to mm
-        self.pixel_to_mm_x, self.pixel_to_mm_y = get_pixel_to_mm(
-            self.corners, self.ids)
         while True:
             if self.stop_flag.is_set():
                 return
-            if time.time() - start_time > 1:
-                self.queue_from_camera.put((CameraEvent.FPS, frame_count))
-                frame_count = 0
-                start_time = time.time()
 
             frame_count += 1
             frame_num += 1
 
             # Get the RealSense frame to be processed by OpenCV
             frame = self.read_color_frame()
-            # color_frame = frames.get_color_frame()
-            # frame = np.asanyarray(color_frame.get_data())
+            processing_time = time.time()
+            if time.time() - start_time > 1:
+                self.queue_from_camera.put((CameraEvent.FPS, frame_count))
+                frame_count = 0
+                start_time = time.time()
+
+            # Get the region of interest, and only look for contours there in order to minimize computing necessity
+            region_of_interest_mask = np.zeros(frame.shape, dtype=np.uint8)
+            roi_corners = np.array([self.pixel_bottom_left_corner[::-1], self.pixel_top_left_corner[::-1],
+                                    self.pixel_top_right_corner[::-1], self.pixel_bottom_right_corner[::-1]])
+            cv2.fillPoly(region_of_interest_mask, [roi_corners], (255, 255, 255))
+            region_of_interest_frame = cv2.bitwise_and(frame, region_of_interest_mask)
 
             # Resize and blur the frame, then convert to HSV
-            # frame = imutils.resize(frame, width=600)
-            blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+            blurred = cv2.GaussianBlur(region_of_interest_frame, (5, 5), 0)
             hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
             # Construct color mask, then erode and dilate to clean up extraneous
             # contours
             mask = cv2.inRange(hsv, color_mask_lower, color_mask_upper)
-            mask = cv2.dilate(mask, None, iterations=2)
+            cv2.imshow("region of interest", mask.copy())
+            kernel = np.ones((3, 3), np.uint8)
+            mask = cv2.erode(mask, kernel, iterations=1)
+            kernel = np.ones((5, 5), np.uint8)
+            mask = cv2.dilate(mask, kernel, iterations=2)
 
             # Find all contours in the mask and initialize the center
-            cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            cnts = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cnts = imutils.grab_contours(cnts)
 
-            cv2.line(frame, (140, 55), (800, 55), (0, 0, 255), 1)
-            cv2.line(frame, (140, 55), (140, 450), (0, 0, 255), 1)
-            cv2.line(frame, (140, 450), (800, 450), (0, 0, 255), 1)
-            cv2.line(frame, (800, 450), (800, 55), (0, 0, 255), 1)
+            cv2.line(frame, self.pixel_bottom_left_corner[::-1], self.pixel_top_left_corner[::-1], (0, 0, 255), 1)
+            cv2.line(frame, self.pixel_top_left_corner[::-1], self.pixel_top_right_corner[::-1], (0, 0, 255), 1)
+            cv2.line(frame, self.pixel_top_right_corner[::-1], self.pixel_bottom_right_corner[::-1], (0, 0, 255), 1)
+            cv2.line(frame, self.pixel_bottom_right_corner[::-1], self.pixel_bottom_left_corner[::-1], (0, 0, 255), 1)
 
             # Initialize the best contour to none, then search for the best one
-            contoursInAOI = []
-            bestCenter = None
-            if len(cnts) > 0:
-                bestContour = None
-                # Remove all contours not in area of interest
-                for c in cnts:
-                    ((x, y), radius) = cv2.minEnclosingCircle(c)
-                    M = cv2.moments(c)
-                    center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-                    if center[0] > 140 and center[0] < 800 and center[1] > 55 and center[1] < 450 and cv2.contourArea(
-                            c) < maxContourSize:
-                        contoursInAOI.append(c)
-                        if bestContour is None or cv2.contourArea(bestContour) <= cv2.contourArea(c):
-                            bestContour = c
-                            bestCenter = center
+            best_center = None
+            if len(cnts) == 1:
+                best_contour = cnts[0]
+                center, radius = cv2.minEnclosingCircle(best_contour)
+                center = tuple(map(int, center))
+                radius = int(radius)
+                cv2.circle(frame, center, radius, (0, 0, 255), 2)
 
-                cv2.drawContours(frame, contoursInAOI, -1, (255, 0, 0), 10)
-                cv2.drawContours(frame, cnts, -1, (0, 255, 0), 3)
+                M = cv2.moments(best_contour)
+                best_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+                #cv2.drawContours(frame, [best_], -1, (255, 0, 0), 10)
+                #cv2.drawContours(frame, cnts, -1, (0, 255, 0), 3)
+            else:
+                print("Failed to detect ball.")
 
             # Update the list of centers, removing the oldest one every 10 frames if
             # there is more than 1 stored.
-            if bestCenter:
+            if best_center:
                 # TODO delete this not using the predicted trajectory for now.
-                self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (bestCenter[1], bestCenter[0]),
+                self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (best_center[1], best_center[0]),
                                                                            "mm": self.convert_pixels_to_mm_playing_field(
-                                                                               bestCenter[1], bestCenter[0])}))
-                last_x = bestCenter[0]
+                                                                               best_center[1], best_center[0])}))
+                # self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (best_center[1], best_center[0]),
+                # "mm": self.convert_pixels_to_mm_playing_field(
+                # best_center[1], best_center[0])}))
+                last_y = best_center[0]
                 # self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (bestCenter[1], bestCenter[0]),
                 # "mm": self.convert_pixels_to_mm_playing_field(
                 # bestCenter[1], bestCenter[0])}))
-                if len(pts) < 2 or sqrt(((bestCenter[0] - pts[-1][0]) ** 2) + ((bestCenter[1] - pts[-1][1])) ** 2) > 7:
-                    pts.appendleft(bestCenter)
+                if len(pts) < 2 or sqrt(((best_center[0] - pts[-1][0]) ** 2) + ((best_center[1] - pts[-1][1])) ** 2) > 7:
+                    pts.appendleft(best_center)
             if frame_num == 10:
                 if len(pts) > 2:
                     pts.pop()
@@ -205,9 +218,9 @@ class CameraManager:
 
                 x_speed = xAvg / (len(pts) - 1)
 
-                if bestCenter:
-                    cv2.arrowedLine(frame, (bestCenter[0], bestCenter[1]),
-                                    (round(bestCenter[0] + xAvg), round(bestCenter[1] + yAvg)), (255, 0, 0), 5)
+                if best_center:
+                    cv2.arrowedLine(frame, (best_center[0], best_center[1]),
+                                    (round(best_center[0] + xAvg), round(best_center[1] + yAvg)), (255, 0, 0), 5)
 
                 if xAvg > 0:
                     yAvg = yAvg / xAvg
@@ -223,13 +236,13 @@ class CameraManager:
             # If the calculated x component of speed implies that ball will
             #   cross goal line within the next 60 frames, send the predicted
             #   y position, else send the current y position
-            if bestCenter:
+            if best_center:
                 posToSend = last_pos_sent
-                if bestCenter[0] + (xAvg * sendMoveFrameThresh) >= 800:
+                if best_center[0] + (xAvg * send_move_frame_thresh) >= 800:
                     posToSend = max(min(round(end_y), 450), 55) if abs(
                         last_pos_sent - max(min(round(end_y), 450), 55)) >= 10 else last_pos_sent
                 else:
-                    posToSend = bestCenter[1] if abs(last_pos_sent - bestCenter[1]) >= 10 else last_pos_sent
+                    posToSend = best_center[1] if abs(last_pos_sent - best_center[1]) >= 10 else last_pos_sent
                 cv2.circle(frame, (800, posToSend), 10, (255, 0, 0), -1)
                 if posToSend != last_pos_sent:
                     pass
@@ -239,14 +252,14 @@ class CameraManager:
                     # posToSend, 540)}))
 
             # Logic to send kick command
-            if last_x + (kickFrameDelay * x_speed) >= 800 and ball_reset:
+            if last_y + (kick_frame_delay * x_speed) >= 800 and ball_reset:
                 # TODO: Replace with sending kick event
                 self.queue_from_camera.put((CameraEvent.STRIKE, None))
                 print("Kick")
                 ball_reset = False
 
             # Detect when ball is reset to allow kick command to be sent again
-            if bestCenter and bestCenter[0] < 200:
+            if best_center and best_center[0] < 200:
                 ball_reset = True
 
             # Display the current frame
@@ -299,34 +312,43 @@ class CameraManager:
     def pose_estimation(self):
         pose_estimation(self.ids, self.corners, self.get_intrinsics(), self.rgb_frame)
 
-    def convert_pixels_to_mm_playing_field(self, x, y):
-        # Get mm coords relative to the foosball table boundaries.
+    def convert_pixels_to_mm_playing_field(self, x_pixel, y_pixel):
+        x_mm = round(self.camera_measurements.camera_resolution_x - x_pixel - (
+                    self.camera_measurements.camera_resolution_x - self.pixel_bottom_right_corner[0]), 2)
+        y_mm = round(self.camera_measurements.camera_resolution_y - y_pixel - (
+                    self.camera_measurements.camera_resolution_y - self.pixel_bottom_right_corner[1]), 2)
+        return x_mm, y_mm
 
-        # Get aruco padding in pixels
-        pixel_aruco_padding = self.camera_measurements.mm_aruco_padding / self.pixel_to_mm_x
-        y_perspective_compensation = self.camera_measurements.y_perspective_compensation / self.pixel_to_mm_y
+    def __detect_goalie(self):
+        frame = self.read_color_frame()
+        blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+        hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+        color_mask_lower = (78, 187, 161)
+        color_mask_upper = (102, 255, 255)
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.inRange(hsv, color_mask_lower, color_mask_upper)
+        mask = cv2.erode(mask, kernel, iterations=1)
+        mask = cv2.dilate(mask, kernel, iterations=1)
+        contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contours) != 1:
+            print("Failed to detect goalie using last saved values.")
+            if os.path.exists(GOALIE_Y_POS_FILE):
+                with open(GOALIE_Y_POS_FILE, "r") as f:
+                    goalie_y_pos_file = json.load(f)
+                    goalie_y_pos = goalie_y_pos_file["goalie_y_pixel_position"]
+                    self.goalie_y_pixel_position = goalie_y_pos
+            else:
+                return None
+        else:
+            goalie_contour = contours[0]
+            M = cv2.moments(goalie_contour)
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+            with open(GOALIE_Y_POS_FILE, "w") as f:
+                json.dump({"goalie_y_pixel_position": cY}, f)
+            self.goalie_y_pixel_position = cY
 
-        # Gets corner of table pixel value.
-        playing_field_bottom_y = 0
-        playing_field_bottom_x = 0
-        for ii, id in enumerate(self.ids):
-            if id[0] == self.camera_measurements.id_aruco_bottom_right:
-                playing_field_bottom_y = self.corners[ii][:, 0][0][1] + pixel_aruco_padding + y_perspective_compensation
-            if id[0] == self.camera_measurements.id_aruco_playing_field_bottom:
-                # Have to add the white padding behind the aruco marker.
-                playing_field_bottom_x = self.corners[ii][:, 0][0][0] + pixel_aruco_padding
-
-        # cv2.circle(self.rgb_frame, (int(playing_field_bottom_x), int(playing_field_bottom_y)), 10, (255, 0, 0), -1)
-        # show frame
-
-        # print(playing_field_bottom_x)
-        # Camera 0 pixel is at the top right so subtract camera resolution to get bottom right point.
-        out = round((self.camera_measurements.camera_resolution_x - x - (
-                self.camera_measurements.camera_resolution_x - playing_field_bottom_x)) / self.pixel_to_mm_x,
-                    2), round((y - playing_field_bottom_y) / self.pixel_to_mm_y, 2)
-        return out
-
-    def detect_field_corners(self):
+    def __detect_field_corners(self):
         frame = self.read_color_frame()
         blurred = cv2.GaussianBlur(frame, (5, 5), 0)
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
@@ -354,9 +376,10 @@ class CameraManager:
                 good_contours.append(contour)
         if len(good_contours) != 1:
             print("Failed to detect contours using last saved values")
-            if os.path.exists("corners.json"):
-                with open("corners.json", "r") as f:
+            if os.path.exists(CORNERS_FILE):
+                with open(CORNERS_FILE, "r") as f:
                     box = json.load(f)
+                    box = np.array(box)
             else:
                 return None
         else:
@@ -364,7 +387,7 @@ class CameraManager:
             rect = cv2.minAreaRect(c)
             box = cv2.boxPoints(rect)
             box = box.astype(int)
-            with open("corners.json", "w") as f:
+            with open(CORNERS_FILE, "w") as f:
                 json.dump(box.tolist(), f)
 
         cv2.drawContours(frame, [box], 0, (0, 255, 0), 1)
@@ -384,17 +407,18 @@ class CameraManager:
 
         # Draw the contours on the original image
         #cv2.drawContours(frame, good_contours, -1, (0, 255, 0), 3)
-        # cv2.imshow('Frame', frame)
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
+        #cv2.imshow('Frame', frame)
+        #cv2.waitKey(0)
+        #cv2.destroyAllWindows()
 
-    def calculate_pixel_to_mm(self):
-        self.pixel_to_mm_y = self.camera_measurements.mm_playing_field_y / (
-                self.pixel_bottom_right_corner[1] - self.pixel_bottom_left_corner[1])
-        self.pixel_to_mm_x = self.camera_measurements.mm_playing_field_x / (
-                self.pixel_bottom_left_corner[0] - self.pixel_top_left_corner[0])
+    def __calculate_pixel_to_mm(self):
+        self.pixel_to_mm_y = (self.pixel_bottom_right_corner[1] - self.pixel_bottom_left_corner[
+            1]) / self.camera_measurements.mm_playing_field_y
+        self.pixel_to_mm_x = (self.pixel_bottom_left_corner[0] - self.pixel_top_left_corner[
+            0]) / self.camera_measurements.mm_playing_field_x
+        print("Pixel to mm x: ", self.pixel_to_mm_x)
+        print("Pixel to mm y: ", self.pixel_to_mm_y)
 
 
 if __name__ == "__main__":
     camera_manager = CameraManager()
-    camera_manager.detect_field_corners()
