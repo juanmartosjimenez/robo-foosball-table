@@ -61,8 +61,8 @@ def main():
         v1_min, v2_min, v3_min, v1_max, v2_max, v3_max , mask2_v1_min, mask2_v2_min, mask2_v3_min, mask2_v1_max, mask2_v2_max, mask2_v3_max = get_trackbar_values(range_filter)
 
         thresh = cv2.inRange(frame_to_thresh, (v1_min, v2_min, v3_min), (v1_max, v2_max, v3_max))
-        thresh2 = cv2.inRange(frame_to_thresh, (mask2_v1_min, mask2_v2_min, mask2_v3_min), (mask2_v1_max, mask2_v2_max, mask2_v3_max))
-        thresh = cv2.bitwise_or(thresh, thresh2)
+        #thresh2 = cv2.inRange(frame_to_thresh, (mask2_v1_min, mask2_v2_min, mask2_v3_min), (mask2_v1_max, mask2_v2_max, mask2_v3_max))
+        #thresh = cv2.bitwise_or(thresh, thresh2)
 
         #if args['preview']:
             #preview = cv2.bitwise_and(image, image, mask=thresh)

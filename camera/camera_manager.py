@@ -268,7 +268,7 @@ class CameraManager:
             # Logic to send kick command
             if last_x + (kick_frame_delay * y_speed) >= 800 and ball_reset:
                 # TODO: Replace with sending kick event
-                self.queue_from_camera.put((CameraEvent.STRIKE, None))
+                #self.queue_from_camera.put((CameraEvent.STRIKE, None))
                 print("Kick")
                 ball_reset = False
 

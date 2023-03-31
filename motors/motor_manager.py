@@ -1,8 +1,10 @@
 import multiprocessing
 import queue
+import threading
 import time
 import sys
 
+from motors.linear_motor import LinearMotor
 from motors.roboclaw import Roboclaw
 import serial.tools.list_ports
 from motors.motor_measurements import MotorMeasurements
@@ -24,18 +26,17 @@ class MotorManager:
             raise Exception("SERIAL_PORT not set in .env file. Create .env file in root directory and set SERIAL_PORT.")
         self.roboclaw: Roboclaw = Roboclaw(SERIAL_PORT, 38400)
         self.roboclaw.Open()
-        """
-        Shouldn't be necessary once the second limit switch is installed.
-        Actually, this value is coded into the firmware, so when moving to position can never move past that position.
-        There is still an associated risk with move_forward_m1 that will move the motor past the limit.
-        :return:
-        """
-        self.right_limit = 1600
         # Initialize motor measurements.
         self.stop_flag: multiprocessing.Event = stop_flag
         self.measurements = MotorMeasurements()
         self.queue_to_motors = queue_to_motors
         self.queue_from_motors = queue_from_motors
+        self.queue_to_linear_motor = queue.Queue()
+        self.queue_from_linear_motor = queue.Queue()
+        self.queue_to_rotational_motor = queue.Queue()
+        self.queue_from_rotational_motor = queue.Queue()
+        #self.linear_motor = LinearMotor(self.queue_to_linear_motor, self.queue_from_linear_motor, self.roboclaw, self.measurements, self.stop_flag)
+        #self.linear_motor_thread = threading.Thread(target=self.linear_motor.event_loop).start()
 
     def event_loop(self):
         """
@@ -51,7 +52,6 @@ class MotorManager:
                     pass
                 return
             try:
-                time.sleep(0.01)
                 data = self.queue_to_motors.get_nowait()
                 event = data[0]
                 if event == MotorEvent.HOME_M1:
@@ -294,15 +294,15 @@ class MotorManager:
         mm_goalie_2_movement = self._mm_to_encoder_m1(mm - mm_distance_to_goalie_2)
         mm_goalie_1_movement = self._mm_to_encoder_m1(mm - mm_distance_to_goalie_1)
         mm_goalie_3_movement = self._mm_to_encoder_m1(mm - mm_distance_to_goalie_3)
-        if -650 < mm_goalie_2_movement < self.measurements.m1_encoder_limit + 150:
-            print("goalie2 moving")
-            #self.move_to_pos_m1(mm_goalie_2_movement)
+        if -650 < mm_goalie_2_movement < self.measurements.m1_encoder_limit + 650:
+            #print("goalie2 moving")
+            self.move_to_pos_m1(mm_goalie_2_movement)
         elif mm_goalie_2_movement < -650:
-            print("goalie1 moving")
-            #self.move_to_pos_m1(mm_goalie_1_movement)
+            #print("goalie1 moving")
+            self.move_to_pos_m1(mm_goalie_1_movement)
         elif mm_goalie_2_movement > self.measurements.m1_encoder_limit:
-            print("goalie3 moving")
-            #self.move_to_pos_m1(mm_goalie_3_movement)
+            #print("goalie3 moving")
+            self.move_to_pos_m1(mm_goalie_3_movement)
 
 
 if __name__ == "__main__":

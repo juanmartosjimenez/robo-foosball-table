@@ -31,3 +31,15 @@ class CameraEvent(Enum):
     FPS = 5
     STRIKE = 6
 
+
+class LinearMotorEvent(Enum):
+    """Events"""
+    MOVE_TO_POS = 1
+    STOP = 2
+    HOME = 3
+
+class RotationalMotorEvent(Enum):
+    """Events"""
+    MOVE_TO_POS = 1
+    STRIKE = 2
+    HOME = 3
