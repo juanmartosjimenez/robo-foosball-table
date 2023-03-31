@@ -181,7 +181,6 @@ class CameraManager:
                 center = tuple(map(int, center))
                 radius = int(radius)
                 cv2.circle(frame, center, radius, (0, 0, 255), 2)
-                cv2.putText(frame, "Curr ball pos", center, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
                 M = cv2.moments(best_contour)
                 best_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
@@ -194,6 +193,9 @@ class CameraManager:
             if best_center:
                 # TODO delete this not using the predicted trajectory for now.
                 self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (best_center[0], best_center[1]),
+                                                                           "mm": self.convert_pixels_to_mm_playing_field(
+                                                                               best_center[0], best_center[1])}))
+                self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (best_center[0], best_center[1]),
                                                                            "mm": self.convert_pixels_to_mm_playing_field(
                                                                                best_center[0], best_center[1])}))
                 last_x = best_center[0]

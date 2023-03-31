@@ -288,9 +288,9 @@ class MotorManager:
         # mm_space_to_encoder_0_position = 25
         # mm_distance_to_golie = 264
         # Ideally this is a measurable value but there is some uncertainty with the ball playing field pixels.
-        mm_distance_to_goalie_2 = 315
-        mm_distance_to_goalie_1 = 95
-        mm_distance_to_goalie_3 = 535
+        mm_distance_to_goalie_2 = 248
+        mm_distance_to_goalie_1 = 75
+        mm_distance_to_goalie_3 = 445
         mm_goalie_2_movement = self._mm_to_encoder_m1(mm - mm_distance_to_goalie_2)
         mm_goalie_1_movement = self._mm_to_encoder_m1(mm - mm_distance_to_goalie_1)
         mm_goalie_3_movement = self._mm_to_encoder_m1(mm - mm_distance_to_goalie_3)
