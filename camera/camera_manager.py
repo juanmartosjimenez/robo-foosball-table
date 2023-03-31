@@ -11,6 +11,7 @@ import cv2
 import imutils
 import numpy as np
 from camera.aruco import detect_markers, get_pixel_to_mm, draw_markers, pose_estimation
+from other.prediction_model import calculate_end_pos
 import pyrealsense2 as rs
 
 from camera.camera_measurements import CameraMeasurements
@@ -220,24 +221,25 @@ class CameraManager:
 
             # Calculate the average change in x per change in y in order to predict
             # the ball's path
-            x_avg = 0
-            y_avg = 0
-            if len(pts) > 1:
-                for i in range(len(pts) - 1):
-                    y_avg += (pts[i][1] - pts[i + 1][1])
-                    x_avg += (pts[i][0] - pts[i + 1][0])
+            # x_avg = 0
+            # y_avg = 0
+            # if len(pts) > 1:
+            #     for i in range(len(pts) - 1):
+            #         y_avg += (pts[i][1] - pts[i + 1][1])
+            #         x_avg += (pts[i][0] - pts[i + 1][0])
 
-                y_speed = x_avg / (len(pts) - 1)
+            #     y_speed = x_avg / (len(pts) - 1)
 
-                if best_center:
-                    cv2.arrowedLine(frame, (best_center[0], best_center[1]),
-                                    (round(best_center[0] + x_avg), round(best_center[1] + y_avg)), (255, 0, 0), 5)
+            #     if best_center:
+            #         cv2.arrowedLine(frame, (best_center[0], best_center[1]),
+            #                         (round(best_center[0] + x_avg), round(best_center[1] + y_avg)), (255, 0, 0), 5)
 
-                if x_avg > 0:
-                    y_avg = y_avg / x_avg
-                else:
-                    y_avg = 0
-                end_y = pts[-1][1] + (y_avg * (800 - pts[-1][0]))
+            #     if x_avg > 0:
+            #         y_avg = y_avg / x_avg
+            #     else:
+            #         y_avg = 0
+            #     end_y = pts[-1][1] + (y_avg * (800 - pts[-1][0]))
+            end_y = calculate_end_pos(pts, self.camera_measurements.camera_fps, radius, self.pixel_top_left_corner[1], self.pixel_bottom_left_corner[1], self.goalie_x_pixel_position)
                 # self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (end_y, 540), "mm": self.convert_pixels_to_mm_playing_field(end_y, 540)}))
 
             # Draw a circle where the ball is expected to cross the goal line
