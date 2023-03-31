@@ -18,7 +18,7 @@ from other.events import CameraEvent
 
 # DATA FILES
 CORNERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/corners.json")
-GOALIE_Y_POS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/goalie_y_pos.json")
+GOALIE_X_POS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/goalie_y_pos.json")
 
 
 class CameraManager:
@@ -32,7 +32,7 @@ class CameraManager:
         None, None, None, None)
         self.corners, self.ids, self.rejected = (None, None, None)
         self.pixel_to_mm_x, self.pixel_to_mm_y = (None, None)
-        self.goalie_y_pixel_position = None
+        self.goalie_x_pixel_position = None
 
         # Start the camera pipe
         self.pipe: Optional[rs.pipeline] = None
@@ -114,8 +114,8 @@ class CameraManager:
         start_time = time.time()
         last_pos_sent = 250
         frame_num = 0
-        x_speed = 0
-        last_y = 0
+        y_speed = 0
+        last_x = 0
         ball_reset = True
         # Detect aruco markers
         self.corners, self.ids, self.rejected = (None, None, None)
@@ -137,8 +137,8 @@ class CameraManager:
 
             # Get the region of interest, and only look for contours there in order to minimize computing necessity
             region_of_interest_mask = np.zeros(frame.shape, dtype=np.uint8)
-            roi_corners = np.array([self.pixel_bottom_left_corner[::-1], self.pixel_top_left_corner[::-1],
-                                    self.pixel_top_right_corner[::-1], self.pixel_bottom_right_corner[::-1]])
+            roi_corners = np.array([self.pixel_bottom_left_corner, self.pixel_top_left_corner,
+                                    self.pixel_top_right_corner, self.pixel_bottom_right_corner])
             cv2.fillPoly(region_of_interest_mask, [roi_corners], (255, 255, 255))
             region_of_interest_frame = cv2.bitwise_and(frame, region_of_interest_mask)
 
@@ -160,18 +160,18 @@ class CameraManager:
             cnts = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cnts = imutils.grab_contours(cnts)
 
-            cv2.line(frame, self.pixel_bottom_left_corner[::-1], self.pixel_top_left_corner[::-1], (0, 0, 255), 1)
-            cv2.putText(frame, "Bottom Left", self.pixel_bottom_left_corner[::-1], cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-            cv2.line(frame, self.pixel_top_left_corner[::-1], self.pixel_top_right_corner[::-1], (0, 0, 255), 1)
-            cv2.putText(frame, "Top Left", self.pixel_top_left_corner[::-1], cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-            cv2.line(frame, self.pixel_top_right_corner[::-1], self.pixel_bottom_right_corner[::-1], (0, 0, 255), 1)
-            cv2.putText(frame, "Top Right", self.pixel_top_right_corner[::-1], cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-            cv2.line(frame, self.pixel_bottom_right_corner[::-1], self.pixel_bottom_left_corner[::-1], (0, 0, 255), 1)
-            cv2.putText(frame, "Bottom Right", self.pixel_bottom_right_corner[::-1], cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            cv2.line(frame, self.pixel_bottom_left_corner, self.pixel_top_left_corner, (0, 0, 255), 1)
+            cv2.putText(frame, "Bottom Left", self.pixel_bottom_left_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            cv2.line(frame, self.pixel_top_left_corner, self.pixel_top_right_corner, (0, 0, 255), 1)
+            cv2.putText(frame, "Top Left", self.pixel_top_left_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            cv2.line(frame, self.pixel_top_right_corner, self.pixel_bottom_right_corner, (0, 0, 255), 1)
+            cv2.putText(frame, "Top Right", self.pixel_top_right_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            cv2.line(frame, self.pixel_bottom_right_corner, self.pixel_bottom_left_corner, (0, 0, 255), 1)
+            cv2.putText(frame, "Bottom Right", self.pixel_bottom_right_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
 
             # Draw the goalie line
-            cv2.line(frame, (self.goalie_y_pixel_position, self.pixel_top_right_corner[0]), (self.goalie_y_pixel_position, self.pixel_bottom_right_corner[0]), (0, 0, 255), 3)
+            cv2.line(frame, (self.goalie_x_pixel_position, self.pixel_top_right_corner[1]), (self.goalie_x_pixel_position, self.pixel_bottom_right_corner[1]), (0, 0, 255), 3)
 
             # Initialize the best contour to none, then search for the best one
             best_center = None
@@ -181,6 +181,7 @@ class CameraManager:
                 center = tuple(map(int, center))
                 radius = int(radius)
                 cv2.circle(frame, center, radius, (0, 0, 255), 2)
+                cv2.putText(frame, "Curr ball pos", center, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
                 M = cv2.moments(best_contour)
                 best_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
@@ -192,16 +193,10 @@ class CameraManager:
             # there is more than 1 stored.
             if best_center:
                 # TODO delete this not using the predicted trajectory for now.
-                self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (best_center[1], best_center[0]),
+                self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (best_center[0], best_center[1]),
                                                                            "mm": self.convert_pixels_to_mm_playing_field(
-                                                                               best_center[1], best_center[0])}))
-                # self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (best_center[1], best_center[0]),
-                # "mm": self.convert_pixels_to_mm_playing_field(
-                # best_center[1], best_center[0])}))
-                last_y = best_center[0]
-                # self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (bestCenter[1], bestCenter[0]),
-                # "mm": self.convert_pixels_to_mm_playing_field(
-                # bestCenter[1], bestCenter[0])}))
+                                                                               best_center[0], best_center[1])}))
+                last_x = best_center[0]
                 if len(pts) < 2 or sqrt(((best_center[0] - pts[-1][0]) ** 2) + ((best_center[1] - pts[-1][1])) ** 2) > 7:
                     pts.appendleft(best_center)
             if frame_num == 10:
@@ -223,7 +218,7 @@ class CameraManager:
                     y_avg += (pts[i][1] - pts[i + 1][1])
                     x_avg += (pts[i][0] - pts[i + 1][0])
 
-                x_speed = x_avg / (len(pts) - 1)
+                y_speed = x_avg / (len(pts) - 1)
 
                 if best_center:
                     cv2.arrowedLine(frame, (best_center[0], best_center[1]),
@@ -237,8 +232,8 @@ class CameraManager:
                 # self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (end_y, 540), "mm": self.convert_pixels_to_mm_playing_field(end_y, 540)}))
 
             # Draw a circle where the ball is expected to cross the goal line
-            cv2.circle(frame, (800, max(min(round(self.goalie_y_pixel_position), 450), 55)), 10, (255, 255, 0), -1)
-            cv2.putText(frame, "Cur ball pos", (800, max(min(round(end_y), 450), 55)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+            cv2.circle(frame, (self.goalie_x_pixel_position, max(min(round(end_y), 450), 55)), 10, (255, 255, 0), -1)
+            cv2.putText(frame, "Predicted ball pos", (self.goalie_x_pixel_position, max(min(round(end_y), 450), 55)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
 
             # Logic to choose what move command to send.
             # If the calculated x component of speed implies that ball will
@@ -251,8 +246,8 @@ class CameraManager:
                         last_pos_sent - max(min(round(end_y), 450), 55)) >= 10 else last_pos_sent
                 else:
                     posToSend = best_center[1] if abs(last_pos_sent - best_center[1]) >= 10 else last_pos_sent
-                cv2.circle(frame, (800, posToSend), 10, (255, 0, 0), -1)
-                cv2.putText(frame, "Pos to send", (800, posToSend), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+                #cv2.circle(frame, (800, posToSend), 10, (255, 0, 0), -1)
+                #cv2.putText(frame, "Pos to send", (800, posToSend), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
 
                 if posToSend != last_pos_sent:
                     pass
@@ -262,7 +257,7 @@ class CameraManager:
                     # posToSend, 540)}))
 
             # Logic to send kick command
-            if last_y + (kick_frame_delay * x_speed) >= 800 and ball_reset:
+            if last_x + (kick_frame_delay * y_speed) >= 800 and ball_reset:
                 # TODO: Replace with sending kick event
                 self.queue_from_camera.put((CameraEvent.STRIKE, None))
                 print("Kick")
@@ -284,8 +279,8 @@ class CameraManager:
         :return:
         """
         config = rs.config()
-        config.enable_stream(rs.stream.color, self.camera_measurements.camera_resolution_y,
-                             self.camera_measurements.camera_resolution_x, rs.format.bgr8,
+        config.enable_stream(rs.stream.color, self.camera_measurements.camera_resolution_x,
+                             self.camera_measurements.camera_resolution_y, rs.format.bgr8,
                              self.camera_measurements.camera_fps)
         pipe = rs.pipeline()
         pipe.start(config)
@@ -323,11 +318,12 @@ class CameraManager:
         pose_estimation(self.ids, self.corners, self.get_intrinsics(), self.rgb_frame)
 
     def convert_pixels_to_mm_playing_field(self, x_pixel, y_pixel):
-        x_mm = round(self.camera_measurements.camera_resolution_x - x_pixel - (
-                    self.camera_measurements.camera_resolution_x - self.pixel_bottom_right_corner[0]), 2)
-        y_mm = round(self.camera_measurements.camera_resolution_y - y_pixel - (
-                    self.camera_measurements.camera_resolution_y - self.pixel_bottom_right_corner[1]), 2)
-        return x_mm, y_mm
+        # TODO motors should not take these in the wrong order
+        x_mm = round((self.camera_measurements.camera_resolution_x - x_pixel - (
+                    self.camera_measurements.camera_resolution_x - self.pixel_bottom_right_corner[0]))/self.pixel_to_mm_x, 2)
+        y_mm = round((self.camera_measurements.camera_resolution_y - y_pixel - (
+                    self.camera_measurements.camera_resolution_y - self.pixel_bottom_right_corner[1]))/self.pixel_to_mm_y, 2)
+        return y_mm, x_mm
 
     def __detect_goalie(self):
         frame = self.read_color_frame()
@@ -342,11 +338,11 @@ class CameraManager:
         contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if len(contours) != 1:
             print("Failed to detect goalie using last saved values.")
-            if os.path.exists(GOALIE_Y_POS_FILE):
-                with open(GOALIE_Y_POS_FILE, "r") as f:
-                    goalie_y_pos_file = json.load(f)
-                    goalie_y_pos = goalie_y_pos_file["goalie_y_pixel_position"]
-                    self.goalie_y_pixel_position = goalie_y_pos
+            if os.path.exists(GOALIE_X_POS_FILE):
+                with open(GOALIE_X_POS_FILE, "r") as f:
+                    goalie_x_pos_file = json.load(f)
+                    goalie_x_pos = goalie_x_pos_file["goalie_x_pixel_position"]
+                    self.goalie_x_pixel_position = goalie_x_pos
             else:
                 return None
         else:
@@ -354,9 +350,9 @@ class CameraManager:
             M = cv2.moments(goalie_contour)
             cX = int(M["m10"] / M["m00"])
             cY = int(M["m01"] / M["m00"])
-            with open(GOALIE_Y_POS_FILE, "w") as f:
-                json.dump({"goalie_y_pixel_position": cX}, f)
-            self.goalie_y_pixel_position = cX
+            with open(GOALIE_X_POS_FILE, "w") as f:
+                json.dump({"goalie_x_pixel_position": cX}, f)
+            self.goalie_x_pixel_position = cX
 
     def __detect_field_corners(self):
         frame = self.read_color_frame()
@@ -402,13 +398,13 @@ class CameraManager:
 
         cv2.drawContours(frame, [box], 0, (0, 255, 0), 1)
         # Blue
-        cv2.circle(frame, (box[0][0], box[0][1]), 10, (255, 0, 0), -1)
+        cv2.circle(frame, box[0], 10, (255, 0, 0), -1)
         # Red
-        cv2.circle(frame, (box[1][0], box[1][1]), 10, (0, 0, 255), -1)
+        cv2.circle(frame, box[1], 10, (0, 0, 255), -1)
         # Green
-        cv2.circle(frame, (box[2][0], box[2][1]), 10, (0, 255, 0), -1)
+        cv2.circle(frame, box[2], 10, (0, 255, 0), -1)
         # Purple
-        cv2.circle(frame, (box[3][0], box[3][1]), 10, (221, 160, 221), -1)
+        cv2.circle(frame, box[3], 10, (221, 160, 221), -1)
 
         # Label the different box vertices.
 
@@ -421,18 +417,18 @@ class CameraManager:
 
         # Sort based on x coordinate.
         if top_vertices[0][0] > top_vertices[1][0]:
-            self.pixel_top_left_corner = (top_vertices[1][1], top_vertices[1][0])
-            self.pixel_top_right_corner = (top_vertices[0][1], top_vertices[0][0])
+            self.pixel_top_left_corner = top_vertices[1]
+            self.pixel_top_right_corner = top_vertices[0]
         else:
-            self.pixel_top_left_corner = (top_vertices[0][1], top_vertices[0][0])
-            self.pixel_top_right_corner = (top_vertices[1][1], top_vertices[1][0])
+            self.pixel_top_left_corner = top_vertices[0]
+            self.pixel_top_right_corner = top_vertices[1]
 
         if bottom_vertices[0][0] > bottom_vertices[1][0]:
-            self.pixel_bottom_left_corner = (bottom_vertices[1][1], bottom_vertices[1][0])
-            self.pixel_bottom_right_corner = (bottom_vertices[0][1], bottom_vertices[0][0])
+            self.pixel_bottom_left_corner = bottom_vertices[1]
+            self.pixel_bottom_right_corner = bottom_vertices[0]
         else:
-            self.pixel_bottom_left_corner = (bottom_vertices[0][1], bottom_vertices[0][0])
-            self.pixel_bottom_right_corner = (bottom_vertices[1][1], bottom_vertices[1][0])
+            self.pixel_bottom_left_corner = bottom_vertices[0]
+            self.pixel_bottom_right_corner = bottom_vertices[1]
 
         # Draw the contours on the original image
         #cv2.drawContours(frame, [box], -1, (0, 255, 0), 3)
@@ -441,11 +437,10 @@ class CameraManager:
         #cv2.destroyAllWindows()
 
     def __calculate_pixel_to_mm(self):
-        self.pixel_to_mm_y = (self.pixel_bottom_right_corner[1] - self.pixel_bottom_left_corner[
-            1]) / self.camera_measurements.mm_playing_field_y
-        print(self.pixel_bottom_left_corner[0], self.pixel_top_left_corner[0], "PIXEL TO MM X")
-        self.pixel_to_mm_x = (self.pixel_bottom_right_corner[0] - self.pixel_top_right_corner[
+        self.pixel_to_mm_x = (self.pixel_bottom_right_corner[0] - self.pixel_bottom_left_corner[
             0]) / self.camera_measurements.mm_playing_field_x
+        self.pixel_to_mm_y = (self.pixel_bottom_right_corner[1] - self.pixel_top_right_corner[
+            1]) / self.camera_measurements.mm_playing_field_y
         print("Pixel to mm x: ", self.pixel_to_mm_x)
         print("Pixel to mm y: ", self.pixel_to_mm_y)
 
