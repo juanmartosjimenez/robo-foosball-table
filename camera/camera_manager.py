@@ -19,7 +19,7 @@ from other.events import CameraEvent
 
 # DATA FILES
 CORNERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/corners.json")
-GOALIE_X_POS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/goalie_y_pos.json")
+GOALIE_X_POS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/goalie_x_pos.json")
 
 
 class CameraManager:
@@ -114,29 +114,30 @@ class CameraManager:
 
         # Initialize variables and loop to continuously get and process video
         end_y = 250
-        frame_count = 0
+        total_frame_count = 0
+        frame_count_per_second = 0
         start_time = time.time()
         last_pos_sent = 250
         frame_num = 0
         y_speed = 0
         last_x = 0
         ball_reset = True
+        radius = 30
         # Detect aruco markers
         self.corners, self.ids, self.rejected = (None, None, None)
         # Calculate ratio of pixels to mm
         while True:
             if self.stop_flag.is_set():
                 return
-
-            frame_count += 1
-            frame_num += 1
-
             # Get the RealSense frame to be processed by OpenCV
             frame = self.read_color_frame()
+            frame_count_per_second += 1
+            frame_num += 1
+            total_frame_count += 1
             processing_time = time.time()
             if time.time() - start_time > 1:
-                self.queue_from_camera.put((CameraEvent.FPS, frame_count))
-                frame_count = 0
+                self.queue_from_camera.put((CameraEvent.FPS, frame_count_per_second))
+                frame_count_per_second = 0
                 start_time = time.time()
 
             # Get the region of interest, and only look for contours there in order to minimize computing necessity
@@ -155,7 +156,7 @@ class CameraManager:
             mask1 = cv2.inRange(hsv, mask1_lower, mask1_upper)
             mask2 = cv2.inRange(hsv, mask2_lower, mask2_upper)
             mask = cv2.bitwise_or(mask1, mask2)
-            cv2.imshow("region of interest", mask.copy())
+            # cv2.imshow("region of interest", mask.copy())
             kernel = np.ones((3, 3), np.uint8)
             mask = cv2.erode(mask, kernel, iterations=1)
             kernel = np.ones((5, 5), np.uint8)
@@ -203,9 +204,9 @@ class CameraManager:
                 self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (best_center[0], best_center[1]),
                                                                            "mm": self.convert_pixels_to_mm_playing_field(
                                                                                best_center[0], best_center[1])}))
-                self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (best_center[0], best_center[1]),
-                                                                           "mm": self.convert_pixels_to_mm_playing_field(
-                                                                               best_center[0], best_center[1])}))
+                #self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (best_center[0], best_center[1]),
+                                                                           #"mm": self.convert_pixels_to_mm_playing_field(
+                                                                               #best_center[0], best_center[1])}))
                 last_x = best_center[0]
                 if len(pts) < 2 or sqrt(((best_center[0] - pts[-1][0]) ** 2) + ((best_center[1] - pts[-1][1])) ** 2) > 7:
                     pts.appendleft(best_center)
@@ -221,26 +222,27 @@ class CameraManager:
 
             # Calculate the average change in x per change in y in order to predict
             # the ball's path
-            # x_avg = 0
-            # y_avg = 0
-            # if len(pts) > 1:
-            #     for i in range(len(pts) - 1):
-            #         y_avg += (pts[i][1] - pts[i + 1][1])
-            #         x_avg += (pts[i][0] - pts[i + 1][0])
+            x_avg = 0
+            y_avg = 0
+            if len(pts) > 1:
+                for i in range(len(pts) - 1):
+                    y_avg += (pts[i][1] - pts[i + 1][1])
+                    x_avg += (pts[i][0] - pts[i + 1][0])
 
-            #     y_speed = x_avg / (len(pts) - 1)
+                y_speed = x_avg / (len(pts) - 1)
 
-            #     if best_center:
-            #         cv2.arrowedLine(frame, (best_center[0], best_center[1]),
-            #                         (round(best_center[0] + x_avg), round(best_center[1] + y_avg)), (255, 0, 0), 5)
+                if best_center:
+                    cv2.arrowedLine(frame, (best_center[0], best_center[1]),
+                                    (round(best_center[0] + x_avg), round(best_center[1] + y_avg)), (255, 0, 0), 5)
 
-            #     if x_avg > 0:
-            #         y_avg = y_avg / x_avg
-            #     else:
-            #         y_avg = 0
-            #     end_y = pts[-1][1] + (y_avg * (800 - pts[-1][0]))
+                if x_avg > 0:
+                    y_avg = y_avg / x_avg
+                else:
+                    y_avg = 0
+            #    end_y = pts[-1][1] + (y_avg * (800 - pts[-1][0]))
             end_y = calculate_end_pos(pts, self.camera_measurements.camera_fps, radius, self.pixel_top_left_corner[1], self.pixel_bottom_left_corner[1], self.goalie_x_pixel_position)
-                # self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (end_y, 540), "mm": self.convert_pixels_to_mm_playing_field(end_y, 540)}))
+            if end_y is not None:
+                self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (self.goalie_x_pixel_position, end_y), "mm": self.convert_pixels_to_mm_playing_field(self.goalie_x_pixel_position, end_y)}))
 
             # Draw a circle where the ball is expected to cross the goal line
             #cv2.circle(frame, (self.goalie_x_pixel_position, max(min(round(end_y), 450), 55)), 10, (255, 255, 0), -1)
@@ -279,9 +281,9 @@ class CameraManager:
                 ball_reset = True
 
             # Display the current frame
-            cv2.imshow("Frame", frame)
-            cv2.imshow("Mask", mask)
-            key = cv2.waitKey(1) & 0xFF
+            #cv2.imshow("Frame", frame)
+            #cv2.imshow("Mask", mask)
+            #key = cv2.waitKey(1) & 0xFF
 
     def __start_pipe(self):
         """

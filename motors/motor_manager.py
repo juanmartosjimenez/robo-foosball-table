@@ -4,7 +4,6 @@ import threading
 import time
 import sys
 
-from motors.linear_motor import LinearMotor
 from motors.roboclaw import Roboclaw
 import serial.tools.list_ports
 from motors.motor_measurements import MotorMeasurements
@@ -195,8 +194,9 @@ class MotorManager:
         """
         # if pos > self.right_limit:
         # raise ValueError("Position out of range")
-        if pos < 0: pos = 0
-        self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 24000, 4000, 24000, pos, 1)
+        if pos < 0: pos = 50
+        if pos > self.measurements.m1_encoder_limit: pos = self.measurements.m1_encoder_limit - 50
+        self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 16000, 4000, 16000, pos, 1)
 
     def move_to_default_pos_m1(self):
         """

@@ -1,9 +1,9 @@
 import math
 from collections import deque
 
-BALL_MASS = 0.1  # mass of ball
-FRICTION_COEFF = 0.1  # coefficient of friction
-RESTIT_COEFF = 0.8  # coefficient of restitution
+BALL_MASS = 24  # mass of ball
+FRICTION_COEFF = 0.3  # coefficient of friction
+RESTIT_COEFF = 0.9  # coefficient of restitution
 GRAVITY = 9.81
 
 def calculate_forces(vx, vy, x, y, radius, top, bottom):
@@ -36,10 +36,10 @@ def calculate_forces(vx, vy, x, y, radius, top, bottom):
 
 
 # Simulate the motion of the ball
-def calculate_end_pos(prev_center_pts: deque[tuple(int, float)], fps: int, radius: int, top_y: float, bottom_y: float, goal_x: float):
+def calculate_end_pos(prev_center_pts: deque[tuple[int, float]], fps: int, radius: int, top_y: float, bottom_y: float, goal_x: float):
     frames = [x for x in prev_center_pts]
     if len(prev_center_pts) > 1:
-        dt = 1 / fps
+        dt = 2 / fps
         # reverse top and bottom because 0 is the top
         top = bottom_y
         bottom = top_y
@@ -49,6 +49,10 @@ def calculate_end_pos(prev_center_pts: deque[tuple(int, float)], fps: int, radiu
         vx = (x - frames[-2][0]) / dt
         vy = (y - frames[-2][1]) / dt
 
+        stop_thresh = 50
+        if vx < stop_thresh or vx < 0:
+            return y
+
         while x < goal_x:
         # Calculate forces
             F_total_x, F_total_y = calculate_forces(vx, vy, x, y, radius, top, bottom)
@@ -56,6 +60,10 @@ def calculate_end_pos(prev_center_pts: deque[tuple(int, float)], fps: int, radiu
             # Update velocity
             vx += F_total_x / BALL_MASS * dt
             vy += F_total_y / BALL_MASS * dt
+
+
+            if vx < stop_thresh or vx < 0:
+                return frames[-1][1]
 
             # Update position
             x += vx * dt
