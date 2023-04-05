@@ -29,15 +29,19 @@ class BallPrediction:
         # Queue used to send out
         self.queue_from_camera = queue_from_camera
         # X range threshold. Number of pixels apart from goalie for predicted path to be taken into account.
-        self.x_range_threshold = 40
+        self.x_range_threshold = 100
         # Camera measurements
         self.camera_measurements = CameraMeasurements()
         # Playing field bottom right pixel.
         self.playing_field_bottom_right = playing_field_bottom_right
+
         # Target x pixel position. Position of the goalie bar.
         self.target_x_pixel = self.__convert_to_playing_field_pixel(target_x_pixel, 0)[0]
+        print("Target x pixel: ", self.target_x_pixel)
         # Ball radius in pixels.
         self.ball_radius = ball_radius
+        # Time step in seconds.
+        self.time_step = 0.2
 
     def __convert_to_playing_field_pixel(self, x_pixel, y_pixel):
         """
@@ -58,12 +62,18 @@ class BallPrediction:
             f.write(f"{str(x_pixel)},{str(y_pixel)}")
 
     def add_new(self, x_pixel, y_pixel):
-        x_pixel, y_pixel = self.__convert_to_playing_field_pixel(x_pixel, y_pixel)
+        if x_pixel is not None and y_pixel is not None:
+            x_pixel, y_pixel = self.__convert_to_playing_field_pixel(x_pixel, y_pixel)
+
         self.ball_writer(x_pixel, y_pixel)
         self.buffer.insert(0, (x_pixel, y_pixel))
         # Remove old ball positions.
         if len(self.buffer) > 60:
             self.buffer = self.buffer[:20]
+
+    def __check_is_none(self, obj):
+        if obj is None or obj[0] is None or obj[1] is None:
+            return True
 
     def _predict(self):
         """
@@ -76,40 +86,44 @@ class BallPrediction:
             prev_pos = self.buffer[1]
 
             # If the current position is None, the ball was not detected during this frame.
-            if curr_pos is None:
-                return None
-
-            # The ball was not detected during the previous frame. So move to the current position.
-            if prev_pos is None:
-                return self.buffer[1]
-
-            # If change in position is less than the ball radius then ball is stationary and no change in position is
-            # needed.
-            if abs(curr_pos[0] - prev_pos[0]) < self.ball_radius * 2:
+            if self.__check_is_none(curr_pos):
+                # print("BALL NOT DETECTED")
                 return None
 
             # If the ball is behind the target position then move to position and strike.
             # TODO make the ball strike.
             if curr_pos[0] < self.target_x_pixel:
-                return self.buffer[1]
+                # print("BALL IS BEHIND TARGET POSITION")
+                return curr_pos[1]
+
+            # The ball was not detected during the previous frame. So move to the current position.
+            if self.__check_is_none(prev_pos):
+                # print("BALL NOT DETECTED DURING PREVIOUS FRAME")
+                return curr_pos[1]
 
             # If the ball is within the x range threshold, use the current ball position instead of predicting
             # trajectory.
             if curr_pos[0] - self.target_x_pixel < self.x_range_threshold:
-                return self.buffer[1]
+                # print("BALL IS WITHIN X RANGE THRESHOLD")
+                return curr_pos[1]
+
+            # If change in position is less than the ball radius then ball is stationary and no change in position is
+            # needed.
+            if abs(curr_pos[0] - prev_pos[0]) < self.ball_radius * 2:
+                # print("BALL IS STATIONARY")
+                return None
 
             # Calculate the speed of the ball.
-            speed = ((curr_pos[0] - prev_pos[0]) ** 2 + (curr_pos[1] - prev_pos[1]) ** 2) ** 0.5
-            x_speed = (curr_pos[0] - prev_pos[0]) / speed
-            y_speed = (curr_pos[1] - prev_pos[1]) / speed
+            x_speed = (curr_pos[0] - prev_pos[0]) / (1/self.rate)
+            y_speed = (curr_pos[1] - prev_pos[1]) / (1/self.rate)
+            print(x_speed, "x speed")
+            print(y_speed, "y speed")
 
             # If x speed is negative then ball is going the wrong way.
             if x_speed < 0:
                 return None
 
-            # Calculate the next position of the ball after the time step.
-            time_step = 0.1 # 0.1 seconds
-
+            predicted_trajectory = []
             x_pixel = curr_pos[0]
             y_pixel = curr_pos[1]
             iterations = 0
@@ -117,11 +131,11 @@ class BallPrediction:
             x_prime = x_pixel
             y_prime = y_pixel
             # If the speed is less than the threshold, use the current ball position instead of predicting trajectory.
-            while x_speed > self.threshold or x_prime!=self.target_x_pixel:
+            while x_speed > self.threshold or x_prime != self.target_x_pixel:
                 iterations += 1
                 elapsed_time = 0
-                while elapsed_time != time_step:
-                    remaining_time = time_step - elapsed_time
+                while elapsed_time != self.time_step:
+                    remaining_time = self.time_step - elapsed_time
                     # Calculate the next position of the ball after the time step.
                     x_prime = x_pixel + x_speed * remaining_time * self.damping
                     y_prime = y_pixel + y_speed * remaining_time * self.damping
@@ -143,9 +157,11 @@ class BallPrediction:
                             time_step_prime = (self.target_x_pixel - x_pixel) / (x_speed * self.damping)
                             y_prime = y_pixel + y_speed * time_step_prime * self.damping
                             x_prime = self.target_x_pixel
+                            predicted_trajectory.append((x_prime, y_prime))
                             elapsed_time += time_step_prime
                             break
                         else:
+                            predicted_trajectory.append((x_prime, y_prime))
                             elapsed_time += time_step_prime
                             # There is surely a more physics way of doing this but this works.
                             # Update the Y speed of the ball after bouncing off the wall.
@@ -157,9 +173,11 @@ class BallPrediction:
                             time_step_prime = (self.target_x_pixel - x_pixel) / (x_speed * self.damping)
                             y_prime = y_pixel + y_speed * time_step_prime * self.damping
                             x_prime = self.target_x_pixel
+                            predicted_trajectory.append((x_prime, y_prime))
                             elapsed_time += time_step_prime
                             break
                         else:
+                            predicted_trajectory.append((x_prime, y_prime))
                             elapsed_time += remaining_time
 
                 total_elapsed_time += elapsed_time
@@ -191,3 +209,4 @@ class BallPrediction:
     def get_predicted(self):
         out = self._predict()
         self.predicted.append(out)
+        return out

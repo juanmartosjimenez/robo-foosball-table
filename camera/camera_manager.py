@@ -16,6 +16,7 @@ import pyrealsense2 as rs
 
 from camera.camera_measurements import CameraMeasurements
 from other.events import CameraEvent
+from camera.ball_prediction import BallPrediction
 
 # DATA FILES
 CORNERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/corners.json")
@@ -29,8 +30,10 @@ class CameraManager:
 
     def __init__(self, stop_flag: multiprocessing.Event = None, queue_to_camera: multiprocessing.Queue = None,
                  queue_from_camera: multiprocessing.Queue = None):
-        self.pixel_bottom_left_corner, self.pixel_top_left_corner, self.pixel_top_right_corner, self.pixel_bottom_right_corner = (
-        None, None, None, None)
+        self.pixel_bottom_left_corner: Optional[tuple] = None
+        self.pixel_top_left_corner: Optional[tuple] = None
+        self.pixel_top_right_corner: Optional[tuple] = None
+        self.pixel_bottom_right_corner: Optional[tuple] = None
         self.corners, self.ids, self.rejected = (None, None, None)
         self.pixel_to_mm_x, self.pixel_to_mm_y = (None, None)
         self.goalie_x_pixel_position = None
@@ -51,6 +54,9 @@ class CameraManager:
         self.stop_flag: multiprocessing.Event = stop_flag
         self.queue_to_camera: Optional[multiprocessing.Queue] = queue_to_camera
         self.queue_from_camera: Optional[multiprocessing.Queue] = queue_from_camera
+        playing_fields_x_pixels = self.pixel_top_right_corner[0] - self.pixel_top_left_corner[0]
+        playing_fields_y_pixels = self.pixel_bottom_left_corner[1] - self.pixel_top_left_corner[1]
+        self.ball_prediction = BallPrediction(playing_fields_x_pixels, playing_fields_y_pixels, self.camera_measurements.camera_fps, self.queue_from_camera, self.goalie_x_pixel_position, self.pixel_bottom_right_corner, 15)
 
     def draw_aruco_markers(self):
         # Draw the aruco markers
@@ -89,20 +95,6 @@ class CameraManager:
         return lower_hsv, higher_hsv
 
     def start_ball_tracking(self):
-        # -----Constants-----
-        # If algo predicts that it will take this many frames or less for ball to
-        #   cross goal line, send move command to predicted position, else send
-        #   current position
-        send_move_frame_thresh = 60
-
-        # The maximum size that a contour can be to considered a ball by algo
-        max_contour_size = 1000
-
-        # The number of frames before the ball is predicted to pass the goalie
-        #   that the kick command will be sent (0 means command will be sent right
-        #   when ball reaches goalie)
-        kick_frame_delay = 10
-
         # Define the lower and upper HSV boundaries of the foosball and initialize
         # the list of center points
         mask1_lower = (0, 167, 118)
@@ -113,16 +105,8 @@ class CameraManager:
         pts = deque(maxlen=10)
 
         # Initialize variables and loop to continuously get and process video
-        end_y = 250
-        total_frame_count = 0
-        frame_count_per_second = 0
-        start_time = time.time()
-        last_pos_sent = 250
-        frame_num = 0
-        y_speed = 0
-        last_x = 0
-        ball_reset = True
-        radius = 30
+        fps = 0
+        fps_time = time.time()
         # Detect aruco markers
         self.corners, self.ids, self.rejected = (None, None, None)
         # Calculate ratio of pixels to mm
@@ -131,14 +115,12 @@ class CameraManager:
                 return
             # Get the RealSense frame to be processed by OpenCV
             frame = self.read_color_frame()
-            frame_count_per_second += 1
-            frame_num += 1
-            total_frame_count += 1
+            fps += 1
             processing_time = time.time()
-            if time.time() - start_time > 1:
-                self.queue_from_camera.put((CameraEvent.FPS, frame_count_per_second))
-                frame_count_per_second = 0
-                start_time = time.time()
+            if time.time() - fps_time > 1:
+                self.queue_from_camera.put((CameraEvent.FPS, fps))
+                fps = 0
+                fps_time = time.time()
 
             # Get the region of interest, and only look for contours there in order to minimize computing necessity
             region_of_interest_mask = np.zeros(frame.shape, dtype=np.uint8)
@@ -181,109 +163,39 @@ class CameraManager:
             cv2.line(frame, (self.goalie_x_pixel_position, self.pixel_top_right_corner[1]), (self.goalie_x_pixel_position, self.pixel_bottom_right_corner[1]), (0, 0, 255), 3)
 
             # Initialize the best contour to none, then search for the best one
-            best_center = None
             if len(cnts) == 1:
                 best_contour = cnts[0]
                 center, radius = cv2.minEnclosingCircle(best_contour)
                 center = tuple(map(int, center))
                 radius = int(radius)
                 cv2.circle(frame, center, radius, (0, 0, 255), 2)
-
                 M = cv2.moments(best_contour)
-                best_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-                cv2.circle(frame, (self.goalie_x_pixel_position, best_center[1]), 10, (255, 0, 0), -1)
-                cv2.putText(frame, "Curr ball pos", (self.goalie_x_pixel_position, best_center[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-                #cv2.drawContours(frame, [best_], -1, (255, 0, 0), 10)
-                #cv2.drawContours(frame, cnts, -1, (0, 255, 0), 3)
+                ball_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+                self.ball_prediction.add_new(ball_center[0], ball_center[1])
 
-
-            # Update the list of centers, removing the oldest one every 10 frames if
-            # there is more than 1 stored.
-            if best_center:
-                # TODO delete this not using the predicted trajectory for now.
-                self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (best_center[0], best_center[1]),
+                # Send the current ball position to the frontend.
+                self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (ball_center[0], ball_center[1]),
                                                                            "mm": self.convert_pixels_to_mm_playing_field(
-                                                                               best_center[0], best_center[1])}))
-                #self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (best_center[0], best_center[1]),
-                                                                           #"mm": self.convert_pixels_to_mm_playing_field(
-                                                                               #best_center[0], best_center[1])}))
-                last_x = best_center[0]
-                if len(pts) < 2 or sqrt(((best_center[0] - pts[-1][0]) ** 2) + ((best_center[1] - pts[-1][1])) ** 2) > 7:
-                    pts.appendleft(best_center)
-            if frame_num == 10:
-                if len(pts) > 2:
-                    pts.pop()
-                frame_num = 0
+                                                                               ball_center[0], ball_center[1])}))
+                # Draw the y ball position on the goalie line.
+                cv2.circle(frame, (self.goalie_x_pixel_position, ball_center[1]), 10, (255, 0, 0), -1)
+                cv2.putText(frame, "Curr ball pos", (self.goalie_x_pixel_position, ball_center[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+            else:
+                self.ball_prediction.add_new(None, None)
 
-            # Visually connect all the stored center points with lines
-            #for i in range(1, len(pts)):
-                #thickness = int(np.sqrt(64 / float(i + 1)) * 2.5)
-                #cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
+            pred = self.ball_prediction.get_predicted()
+            if pred is not None:
+                print(pred)
 
-            # Calculate the average change in x per change in y in order to predict
-            # the ball's path
-            x_avg = 0
-            y_avg = 0
-            if len(pts) > 1:
-                for i in range(len(pts) - 1):
-                    y_avg += (pts[i][1] - pts[i + 1][1])
-                    x_avg += (pts[i][0] - pts[i + 1][0])
-
-                y_speed = x_avg / (len(pts) - 1)
-
-                if best_center:
-                    cv2.arrowedLine(frame, (best_center[0], best_center[1]),
-                                    (round(best_center[0] + x_avg), round(best_center[1] + y_avg)), (255, 0, 0), 5)
-
-                if x_avg > 0:
-                    y_avg = y_avg / x_avg
-                else:
-                    y_avg = 0
-            #    end_y = pts[-1][1] + (y_avg * (800 - pts[-1][0]))
-            end_y = calculate_end_pos(pts, self.camera_measurements.camera_fps, radius, self.pixel_top_left_corner[1], self.pixel_bottom_left_corner[1], self.goalie_x_pixel_position)
-            if end_y is not None:
-                self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (self.goalie_x_pixel_position, end_y), "mm": self.convert_pixels_to_mm_playing_field(self.goalie_x_pixel_position, end_y)}))
-
-            # Draw a circle where the ball is expected to cross the goal line
-            #cv2.circle(frame, (self.goalie_x_pixel_position, max(min(round(end_y), 450), 55)), 10, (255, 255, 0), -1)
-            #cv2.putText(frame, "Predicted ball pos", (self.goalie_x_pixel_position, max(min(round(end_y), 450), 55)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
-
-            # Logic to choose what move command to send.
-            # If the calculated x component of speed implies that ball will
-            #   cross goal line within the next 60 frames, send the predicted
-            #   y position, else send the current y position
-            if best_center:
-                pos_to_send = last_pos_sent
-                if best_center[0] + (x_avg * send_move_frame_thresh) >= 800:
-                    pos_to_send = max(min(round(end_y), 450), 55) if abs(
-                        last_pos_sent - max(min(round(end_y), 450), 55)) >= 10 else last_pos_sent
-                else:
-                    pos_to_send = best_center[1] if abs(last_pos_sent - best_center[1]) >= 10 else last_pos_sent
-                #cv2.circle(frame, (800, posToSend), 10, (255, 0, 0), -1)
-                #cv2.putText(frame, "Pos to send", (800, posToSend), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-
-                if pos_to_send != last_pos_sent:
-                    pass
-                    # TODO uncomment
-                    # self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (posToSend, 540),
-                    # "mm": self.convert_pixels_to_mm_playing_field(
-                    # posToSend, 540)}))
-
-            # Logic to send kick command
-            if last_x + (kick_frame_delay * y_speed) >= 800 and ball_reset:
-                # TODO: Replace with sending kick event
-                #self.queue_from_camera.put((CameraEvent.STRIKE, None))
-                print("Kick")
-                ball_reset = False
-
-            # Detect when ball is reset to allow kick command to be sent again
-            if best_center and best_center[0] < 200:
-                ball_reset = True
+            # Calculate the predicted ball position
+            # end_y = calculate_end_pos(pts, self.camera_measurements.camera_fps, radius, self.pixel_top_left_corner[1], self.pixel_bottom_left_corner[1], self.goalie_x_pixel_position)
+            #if end_y is not None:
+                #self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (self.goalie_x_pixel_position, end_y), "mm": self.convert_pixels_to_mm_playing_field(self.goalie_x_pixel_position, end_y)}))
 
             # Display the current frame
-            #cv2.imshow("Frame", frame)
-            #cv2.imshow("Mask", mask)
-            #key = cv2.waitKey(1) & 0xFF
+            cv2.imshow("Frame", frame)
+            cv2.imshow("Mask", mask)
+            key = cv2.waitKey(1) & 0xFF
 
     def __start_pipe(self):
         """
