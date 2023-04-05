@@ -4,7 +4,7 @@ import os
 import queue
 import time
 from collections import deque
-from typing import Optional
+from typing import Optional, Iterable
 from math import sqrt
 
 import cv2
@@ -56,7 +56,7 @@ class CameraManager:
         self.queue_from_camera: Optional[multiprocessing.Queue] = queue_from_camera
         playing_fields_x_pixels = self.pixel_top_right_corner[0] - self.pixel_top_left_corner[0]
         playing_fields_y_pixels = self.pixel_bottom_left_corner[1] - self.pixel_top_left_corner[1]
-        self.ball_prediction = BallPrediction(playing_fields_x_pixels, playing_fields_y_pixels, self.camera_measurements.camera_fps, self.queue_from_camera, self.goalie_x_pixel_position, self.pixel_bottom_right_corner, 15)
+        self.ball_prediction = BallPrediction(playing_fields_x_pixels, playing_fields_y_pixels, self.camera_measurements.camera_fps, self.queue_from_camera, self.goalie_x_pixel_position, self.pixel_top_left_corner, 15)
 
     def draw_aruco_markers(self):
         # Draw the aruco markers
@@ -94,6 +94,24 @@ class CameraManager:
         higher_hsv = np.array((target_object_rgb[0] + 50, target_object_rgb[1] + 50, target_object_rgb[2] + 50))
         return lower_hsv, higher_hsv
 
+    def draw_predicted_path(self, frame, pred):
+        if pred is None:
+            return
+        elif isinstance(pred, (list, np.ndarray)):
+            for ii, p in enumerate(pred):
+                if ii == len(pred) - 1:
+                    cv2.putText(frame, f"Point {str(ii + 1)} {str(p)}", p, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+                    break
+                cv2.line(frame, p, pred[ii + 1], (0, 0, 255), 2)
+                cv2.putText(frame, f"Point {str(ii+1)} {str(p)}", p, cv2.FONT_HERSHEY_SIMPLEX, 0.5,(255, 255, 0), 1)
+
+            cv2.circle(frame, (pred[0][0], pred[0][1]), 10, (0, 255, 255), -1)
+            cv2.circle(frame, (pred[-1][0], pred[-1][1]), 10, (0, 255, 255), -1)
+        else:
+            cv2.circle(frame, (self.goalie_x_pixel_position, pred), 10, (0, 255, 0), -1)
+            cv2.putText(frame, "Prediction", (self.goalie_x_pixel_position, pred), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                        (255, 0, 0), 1)
+
     def start_ball_tracking(self):
         # Define the lower and upper HSV boundaries of the foosball and initialize
         # the list of center points
@@ -108,7 +126,8 @@ class CameraManager:
         fps = 0
         fps_time = time.time()
         # Detect aruco markers
-        self.corners, self.ids, self.rejected = (None, None, None)
+        # self.corners, self.ids, self.rejected = (None, None, None)
+        old_pred = None
         # Calculate ratio of pixels to mm
         while True:
             if self.stop_flag.is_set():
@@ -179,14 +198,14 @@ class CameraManager:
                                                                                ball_center[0], ball_center[1])}))
                 # Draw the y ball position on the goalie line.
                 cv2.circle(frame, (self.goalie_x_pixel_position, ball_center[1]), 10, (255, 0, 0), -1)
-                cv2.putText(frame, "Curr ball pos", (self.goalie_x_pixel_position, ball_center[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+                cv2.putText(frame, "Actual", (self.goalie_x_pixel_position, ball_center[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
             else:
-                self.ball_prediction.add_new(None, None)
+                self.ball_prediction.add_new_empty()
 
             pred = self.ball_prediction.get_predicted()
             if pred is not None:
-                print(pred)
-
+                old_pred = pred
+            self.draw_predicted_path(frame, old_pred)
             # Calculate the predicted ball position
             # end_y = calculate_end_pos(pts, self.camera_measurements.camera_fps, radius, self.pixel_top_left_corner[1], self.pixel_bottom_left_corner[1], self.goalie_x_pixel_position)
             #if end_y is not None:
