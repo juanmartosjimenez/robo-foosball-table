@@ -8,6 +8,14 @@ class FrontendEvent(Enum):
     ERROR = 3
     ENCODER_VALS = 4
     FPS = 5
+    START = 6
+    STOP = 7
+    POWER_ON = 8
+    HOME_M1 = 9
+    HOME_M2 = 10
+    MOVE_TO_START_POS = 11
+    TEST_LATENCY = 12
+
 
 
 class MotorEvent(Enum):
