@@ -26,10 +26,17 @@ class ProcessManager:
         self.flask_process = Process(target=start_flask_process,
                                      args=(self.queue_to_flask, self.queue_from_flask))
         self.active_threads = []
+        self.active_threads.append(self.tkinter_frontend_process)
+        self.active_threads.append(self.camera_process)
+        self.active_threads.append(self.motor_process)
+        self.active_threads.append(self.flask_process)
         self.stop_flag = mp.Event()
 
     def run(self):
-        self.tkinter_frontend_process
+        self.tkinter_frontend_process.start()
+        self.camera_process.start()
+        self.motor_process.start()
+        self.flask_process.start()
 
 
 def start_motor_process(queue_to_motors, queue_from_motors, stop_flag):
@@ -68,3 +75,8 @@ def start_flask_process(queue_to_flask, queue_from_flask):
     except Exception as e:
         queue_from_flask.put_nowait(("ERROR", str(e)))
         raise e
+
+
+if __name__ == '__main__':
+    process_manager = ProcessManager()
+    process_manager.run()
