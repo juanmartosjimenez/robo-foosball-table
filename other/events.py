@@ -48,3 +48,10 @@ class RotationalMotorEvent(Enum):
     HOME = 3
     MOVE_TO_DEFAULT = 5
     TEST_STRIKE = 6
+
+class FlaskAppEvent(Enum):
+    START = 1
+    STOP = 2
+    ERROR = 3
+    POWER_ON = 4
+

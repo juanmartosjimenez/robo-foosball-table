@@ -8,8 +8,15 @@ from backend import Backend
 from other.events import FrontendEvent
 
 
+def report_callback_exception(self, exc, val, tb):
+    messagebox.showerror("Error", message=str(val))
+
+
+tk.Tk.report_callback_exception = report_callback_exception
+
+
 class Frontend(tk.Tk):
-    def __init__(self):
+    def __init__(self, stop_flag, queue_to_frontend: Queue, queue_from_frontend: Queue):
         super().__init__()
         self.title("Robot GUI")
         self.columnconfigure(0, weight=1)
@@ -58,8 +65,6 @@ class Frontend(tk.Tk):
         self.test_latency_button = tk.Button(self, text="Test Latency", command=lambda: self.backend.test_latency())
         self.test_latency_button.grid(row=7, column=0)
 
-
-
         def backend_helper():
             self.backend.event_loop()
             self.after(1, backend_helper)
@@ -85,10 +90,12 @@ class Frontend(tk.Tk):
             f'M1 Encoder:{data["encoders"][0]}, M2 Encoder:{data["encoders"][1]}, M1 MM:{data["mm_m1"]}, M2 Degrees:{data["degrees_m2"]}')
 
     def update_ball_position(self, data):
-        self.ball_position_var.set(f'Ball Pixel ({data["pixel"][0]}, {data["pixel"][1]}). Ball MM ({data["mm"][0]}, {data["mm"][1]}).')
+        self.ball_position_var.set(
+            f'Ball Pixel ({data["pixel"][0]}, {data["pixel"][1]}). Ball MM ({data["mm"][0]}, {data["mm"][1]}).')
 
     def update_predicted_ball_position(self, data):
-        self.predicted_ball_var.set(f'Predicted Ball Pixel ({data["pixel"][0]}, {data["pixel"][1]}). Predicted Ball MM ({data["mm"][0]}, {data["mm"][1]}).')
+        self.predicted_ball_var.set(
+            f'Predicted Ball Pixel ({data["pixel"][0]}, {data["pixel"][1]}). Predicted Ball MM ({data["mm"][0]}, {data["mm"][1]}).')
 
     def display_error(self, error):
         messagebox.showerror("Error", str(error))
@@ -98,10 +105,5 @@ class Frontend(tk.Tk):
 
 
 if __name__ == "__main__":
-    def report_callback_exception(self, exc, val, tb):
-        messagebox.showerror("Error", message=str(val))
-
-    tk.Tk.report_callback_exception = report_callback_exception
-
     frontend = Frontend()
     frontend.run()
