@@ -1,10 +1,7 @@
 import tkinter as tk
 from multiprocessing import Queue
+from queue import Empty
 from tkinter import messagebox
-from typing import Optional
-import traceback
-
-from backend import Backend
 from other.events import FrontendEvent
 
 
@@ -16,20 +13,15 @@ tk.Tk.report_callback_exception = report_callback_exception
 
 
 class Frontend(tk.Tk):
-    def __init__(self, stop_flag, queue_to_frontend: Queue, queue_from_frontend: Queue):
+    def __init__(self, queue_to_frontend: Queue, queue_from_frontend: Queue):
         super().__init__()
         self.title("Robot GUI")
+        self.queue_to_frontend = queue_to_frontend
+        self.queue_from_frontend = queue_from_frontend
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
         # set dimensions
         self.geometry("1600x480")
-        self.backend = Backend()
-        self.backend.publisher.add_subscriber(FrontendEvent.ENCODER_VALS, self.update_encoder_positions)
-        self.backend.publisher.add_subscriber(FrontendEvent.CURRENT_BALL_POS, self.update_ball_position)
-        self.backend.publisher.add_subscriber(FrontendEvent.PREDICTED_BALL_POS, self.update_predicted_ball_position)
-        self.backend.publisher.add_subscriber(FrontendEvent.ERROR, self.display_error)
-        self.backend.publisher.add_subscriber(FrontendEvent.FPS, self.update_fps)
-        self.backend.frontend = self
         self.fps_var = tk.StringVar()
         self.fps_var.set("FPS: ")
         self.encoder_var = tk.StringVar()
@@ -51,39 +43,40 @@ class Frontend(tk.Tk):
         self.home_m1_button.grid(row=4, column=0)
         self.home_m2_button = tk.Button(self, text="Home M2", command=self.home_m2)
         self.home_m2_button.grid(row=4, column=1)
-        self.move_to_default_button = tk.Button(self, text="Move to Default", command=self.backend.move_to_default)
+        self.move_to_default_button = tk.Button(self, text="Move to Default",
+                                                command=lambda: self.queue_from_frontend.put_nowait(
+                                                    (FrontendEvent.MOVE_TO_START_POS, None)))
         self.move_to_default_button.grid(row=5, column=0)
         self.start_ball_tracking_button = tk.Button(self, text="Start",
                                                     command=lambda: self.start_ball_tracking())
         self.start_ball_tracking_button.grid(row=5, column=1)
 
-        self.power_on = tk.Button(self, text="Power On", command=lambda: self.backend.start())
+        self.power_on = tk.Button(self, text="Power On",
+                                  command=lambda: self.queue_from_frontend.put_nowait((FrontendEvent.POWER_ON, None)))
         self.power_on.grid(row=6, column=0)
-        self.stop = tk.Button(self, text="Stop", command=lambda: self.backend.stop())
+        self.stop = tk.Button(self, text="Stop",
+                              command=lambda: self.queue_from_frontend.put_nowait((FrontendEvent.STOP, None)))
         self.stop.grid(row=6, column=1)
 
-        self.test_latency_button = tk.Button(self, text="Test Latency", command=lambda: self.backend.test_latency())
+        self.test_latency_button = tk.Button(self, text="Test Latency",
+                                             command=lambda: self.queue_from_frontend.put_nowait(
+                                                 (FrontendEvent.TEST_LATENCY, None)))
         self.test_latency_button.grid(row=7, column=0)
-
-        def backend_helper():
-            self.backend.event_loop()
-            self.after(1, backend_helper)
-
-        backend_helper()
+        self.event_loop()
 
     def start_ball_tracking(self):
         messagebox.showinfo("Start",
                             "Make sure that there are no obstructions on the playing field before pressing Ok.")
-        self.backend.start_ball_tracking()
+        self.queue_from_frontend.put_nowait((FrontendEvent.START, None))
 
     def home_m1(self):
-        self.backend.home_m1()
+        self.queue_from_frontend.put((FrontendEvent.HOME_M1, None))
 
     def update_fps(self, data):
         self.fps_var.set(f'FPS: {str(data)}')
 
     def home_m2(self):
-        self.backend.home_m2()
+        self.queue_from_frontend.put((FrontendEvent.HOME_M2, None))
 
     def update_encoder_positions(self, data):
         self.encoder_var.set(
@@ -103,7 +96,22 @@ class Frontend(tk.Tk):
     def run(self):
         self.mainloop()
 
+    def event_loop(self):
 
-if __name__ == "__main__":
-    frontend = Frontend()
-    frontend.run()
+        try:
+            event = self.queue_to_frontend.get_nowait()
+            event_type = event[0]
+
+            if event_type == FrontendEvent.ENCODER_VALS:
+                self.update_encoder_positions(event[1])
+            elif event_type == FrontendEvent.CURRENT_BALL_POS:
+                self.update_ball_position(event[1])
+            elif event_type == FrontendEvent.PREDICTED_BALL_POS:
+                self.update_predicted_ball_position(event[1])
+            elif event_type == FrontendEvent.ERROR:
+                self.display_error(event[1])
+            elif event_type == FrontendEvent.FPS:
+                self.update_fps(event[1])
+        except Empty:
+            pass
+        self.after(1, self.event_loop)

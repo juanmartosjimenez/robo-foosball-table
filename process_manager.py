@@ -168,7 +168,7 @@ def start_motor_process(queue_to_motors, queue_from_motors, stop_flag):
 
 def start_tkinter_process(queue_to_tkinter_frontend, queue_from_tkinter_frontend, stop_flag):
     try:
-        frontend = Frontend(stop_flag, queue_to_tkinter_frontend, queue_from_tkinter_frontend)
+        frontend = Frontend(queue_to_tkinter_frontend, queue_from_tkinter_frontend)
         frontend.run()
     except Exception as e:
         queue_from_tkinter_frontend.put_nowait(("ERROR", str(e)))
