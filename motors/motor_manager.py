@@ -31,19 +31,19 @@ class MotorManager:
         self.roboclaw: Roboclaw = Roboclaw(SERIAL_PORT, 38400)
         self.roboclaw.Open()
         self.stop_flag: multiprocessing.Event = stop_flag
+        self.roboclaw_lock = threading.Lock()
         self.queue_to_motors = queue_to_motors
         self.queue_from_motors = queue_from_motors
         self.queue_to_linear_motor = queue.Queue()
         self.queue_from_linear_motor = queue.Queue()
         self.queue_to_rotational_motor = queue.Queue()
         self.queue_from_rotational_motor = queue.Queue()
-        self.home()
         self.linear_motor = LinearMotor(self.queue_to_linear_motor, self.queue_from_linear_motor, self.roboclaw,
-                                        self.stop_flag)
+                                        self.stop_flag, self.roboclaw_lock)
         self.linear_motor_thread = threading.Thread(target=self.linear_motor.event_loop)
         self.linear_motor_thread.start()
         self.rotational_motor = RotationalMotor(self.queue_to_rotational_motor, self.queue_from_rotational_motor,
-                                                self.roboclaw, self.stop_flag)
+                                                self.roboclaw, self.stop_flag, self.roboclaw_lock)
         self.rotational_motor_thread = threading.Thread(target=self.rotational_motor.event_loop)
         self.rotational_motor_thread.start()
 
@@ -119,14 +119,16 @@ class MotorManager:
         Returns the encoder positions for both motors.
         :return:
         """
-        return self.roboclaw.ReadEncM1(self.address)[1], self.roboclaw.ReadEncM2(self.address)[1]
+        with self.roboclaw_lock:
+            return self.roboclaw.ReadEncM1(self.address)[1], self.roboclaw.ReadEncM2(self.address)[1]
 
     def read_encoder_counters(self):
         """
         Reads the encoder counters for both motors.
         :return:
         """
-        return self.roboclaw.ReadEncoderCounters(self.address)
+        with self.roboclaw_lock:
+            return self.roboclaw.ReadEncoderCounters(self.address)
 
     def _encoder_to_mm_m1(self, encoder: int) -> float:
         """
@@ -150,12 +152,15 @@ class MotorManager:
         Firmware is set to reset encoder to 0 when limit switch is triggered.
         :return:
         """
-        self.roboclaw.BackwardM1(self.address, 30)
+        with self.roboclaw_lock:
+            self.roboclaw.BackwardM1(self.address, 30)
         while True:
             time.sleep(0.4)
-            if self.roboclaw.ReadSpeedM1(self.address)[1] == 0:
-                self.roboclaw.ForwardM1(self.address, 0)
-                break
+
+            with self.roboclaw_lock:
+                if self.roboclaw.ReadSpeedM1(self.address)[1] == 0:
+                    self.roboclaw.ForwardM1(self.address, 0)
+                    break
 
 
 if __name__ == "__main__":

@@ -10,14 +10,14 @@ from other.events import LinearMotorEvent
 
 class LinearMotor:
     def __init__(self, queue_to_linear_motors: Queue, queue_from_linear_motors: Queue, roboclaw: Roboclaw,
-                 stop_flag: multiprocessing.Event):
+                 stop_flag: multiprocessing.Event, lock: multiprocessing.Lock):
         self.measurements = MotorMeasurements()
         self.address = self.measurements.address
         self.queue_to_motors = queue_to_linear_motors
         self.queue_from_motors = queue_from_linear_motors
         self.roboclaw: Roboclaw = roboclaw
-        self.home()
         self.stop_flag = stop_flag
+        self.lock = lock
 
     def event_loop(self):
         while True:
@@ -60,13 +60,13 @@ class LinearMotor:
         mm_goalie_1_movement = self._mm_to_encoder(mm - mm_distance_to_goalie_1)
         mm_goalie_3_movement = self._mm_to_encoder(mm - mm_distance_to_goalie_3)
         if -650 < mm_goalie_2_movement < self.measurements.m1_encoder_limit + 650:
-            # print("goalie2 moving")
+            print("goalie2 moving")
             self._move_to_pos(mm_goalie_2_movement)
         elif mm_goalie_2_movement < -650:
-            # print("goalie1 moving")
+            print("goalie1 moving")
             self._move_to_pos(mm_goalie_1_movement)
         elif mm_goalie_2_movement > self.measurements.m1_encoder_limit:
-            # print("goalie3 moving")
+            print("goalie3 moving")
             self._move_to_pos(mm_goalie_3_movement)
 
     def _mm_to_encoder(self, mm: float) -> int:
@@ -87,7 +87,8 @@ class LinearMotor:
         # raise ValueError("Position out of range")
         if pos < 0: pos = 50
         if pos > self.measurements.m1_encoder_limit: pos = self.measurements.m1_encoder_limit - 50
-        self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 16000, 4000, 16000, pos, 1)
+        with self.lock:
+            self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 16000, 4000, 16000, pos, 1)
 
     def home(self):
         """
@@ -95,10 +96,13 @@ class LinearMotor:
         Firmware is set to reset encoder to 0 when limit switch is triggered.
         :return:
         """
-        self.roboclaw.BackwardM1(self.address, 30)
+        with self.lock:
+            self.roboclaw.BackwardM1(self.address, 30)
         while True:
             time.sleep(0.4)
-            if self.roboclaw.ReadSpeedM1(self.address)[1] == 0:
+            with self.lock:
+                speed = self.roboclaw.ReadSpeedM1(self.address)[1]
+            if speed == 0:
                 self.stop()
                 break
 
@@ -107,11 +111,12 @@ class LinearMotor:
         Stops motor 1.
         :return:
         """
-        self.roboclaw.ForwardM1(self.address, 0)
+        with self.lock:
+            self.roboclaw.ForwardM1(self.address, 0)
 
     def move_to_default(self):
         """
         Move to default position which is center of goal.
         :return:
         """
-        self.move_to_pos(self.measurements.enc_m1_default)
+        self._move_to_pos(self.measurements.enc_m1_default)

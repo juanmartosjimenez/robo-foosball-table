@@ -9,13 +9,14 @@ from other.events import LinearMotorEvent, RotationalMotorEvent
 
 
 class RotationalMotor:
-    def __init__(self, queue_to_rotational_motors: Queue, queue_from_rotational_motors: Queue, roboclaw: Roboclaw, stop_flag: multiprocessing.Event, ):
+    def __init__(self, queue_to_rotational_motors: Queue, queue_from_rotational_motors: Queue, roboclaw: Roboclaw, stop_flag: multiprocessing.Event, lock: multiprocessing.Lock):
         self.measurements = MotorMeasurements()
         self.address = self.measurements.address
         self.queue_to_motors = queue_to_rotational_motors
         self.queue_from_motors = queue_from_rotational_motors
         self.roboclaw: Roboclaw = roboclaw
         self.stop_flag = stop_flag
+        self.lock = lock
 
     def event_loop(self):
         while True:
@@ -54,7 +55,8 @@ class RotationalMotor:
         """
 
         # Gets the shortest distance to move player to strike start position and moves there.
-        curr_pos = self.roboclaw.ReadEncM2(self.address)[1]
+        with self.lock:
+            curr_pos = self.roboclaw.ReadEncM2(self.address)[1]
         nearest_0 = curr_pos % self.measurements.enc_m2_360_rotation
         if nearest_0 > self.measurements.enc_m2_360_rotation / 2:
             nearest_0 = self.measurements.enc_m2_360_rotation - nearest_0
@@ -66,8 +68,9 @@ class RotationalMotor:
         # Moves the player to strike end position.
         while True:
             # Don't wait for motors to reach exactly the strike start position because it will be too slow.
-            if nearest_0 + self.measurements.enc_m2_strike - 10 <= self.roboclaw.ReadEncM2(self.address)[
-                1] <= nearest_0 + self.measurements.enc_m2_strike:
+            with self.lock:
+                enc_m2 = self.roboclaw.ReadEncM2(self.address)[1]
+            if nearest_0 + self.measurements.enc_m2_strike - 10 <= enc_m2 <= nearest_0 + self.measurements.enc_m2_strike:
                 break
         self.move_forward(120)
         time.sleep(0.09)
@@ -87,7 +90,8 @@ class RotationalMotor:
         :param speed:
         :return:
         """
-        self.roboclaw.BackwardM2(self.address, speed)
+        with self.lock:
+            self.roboclaw.BackwardM2(self.address, speed)
 
     def move_forward(self, speed=30):
         """
@@ -95,7 +99,8 @@ class RotationalMotor:
         :param speed:
         :return:
         """
-        self.roboclaw.ForwardM2(self.address, speed)
+        with self.lock:
+            self.roboclaw.ForwardM2(self.address, speed)
 
     def move_to_default_pos(self):
         """
@@ -111,19 +116,22 @@ class RotationalMotor:
         :param pos:
         :return:
         """
-        self.roboclaw.SpeedAccelDeccelPositionM2(self.address, accell, speed, deccell, pos, 1)
+        with self.lock:
+            self.roboclaw.SpeedAccelDeccelPositionM2(self.address, accell, speed, deccell, pos, 1)
 
     def home(self):
         """
         Sets the encoder position of motor 2 to 0.
         :return:
         """
-        self.roboclaw.SetEncM2(self.address, 145)
+        with self.lock:
+            self.roboclaw.SetEncM2(self.address, 145)
 
     def stop(self):
         """
         Stops motor 2.
         :return:
         """
-        self.roboclaw.ForwardM2(self.address, 0)
+        with self.lock:
+            self.roboclaw.ForwardM2(self.address, 0)
 
