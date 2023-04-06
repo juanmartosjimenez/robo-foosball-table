@@ -55,6 +55,10 @@ class Frontend(tk.Tk):
         self.stop = tk.Button(self, text="Stop", command=lambda: self.backend.stop())
         self.stop.grid(row=6, column=1)
 
+        self.test_latency_button = tk.Button(self, text="Test Latency", command=lambda: self.backend.test_latency())
+        self.test_latency_button.grid(row=7, column=0)
+
+
 
         def backend_helper():
             self.backend.event_loop()

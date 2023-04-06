@@ -1,5 +1,7 @@
 import multiprocessing
 import queue
+import time
+
 from camera.camera_manager import CameraManager
 from motors.motor_manager import MotorManager
 from multiprocessing import Queue
@@ -77,7 +79,7 @@ class Backend(object):
                 self.publisher.publish(FrontendEvent.CURRENT_BALL_POS, data)
             elif event == CameraEvent.PREDICTED_BALL_POS:
                 self.publisher.publish(FrontendEvent.PREDICTED_BALL_POS, data)
-                self.queue_to_motors.put_nowait((MotorEvent.MOVE_TO_MM_M1, data["mm"][0]))
+                self.queue_to_motors.put_nowait((MotorEvent.MOVE_TO_POS, data["mm"][0]))
             elif event == CameraEvent.ERROR:
                 self.stop_flag.set()
                 self.publisher.publish(FrontendEvent.ERROR, data)
@@ -85,6 +87,8 @@ class Backend(object):
                 self.publisher.publish(FrontendEvent.FPS, data)
             elif event == CameraEvent.STRIKE:
                 self.queue_to_motors.put_nowait((MotorEvent.STRIKE, None))
+            elif event == CameraEvent.TEST_STRIKE:
+                self.queue_to_motors.put_nowait((MotorEvent.TEST_STRIKE, None))
             else:
                 print(f"Unknown read_camera event: {str(queue_data)}")
         except queue.Empty:
@@ -119,6 +123,15 @@ class Backend(object):
     def move_to_default(self):
         self.assert_not_stopped()
         self.queue_to_motors.put_nowait((MotorEvent.MOVE_TO_START_POS, None))
+
+    def test_latency(self):
+        """
+        Pushes a kick event to camera process that then propagates back to here and then to motor process to test total
+        latency of the system.
+        :return:
+        """
+        print("Testing latency: start time", time.time())
+        self.queue_to_camera.put_nowait((CameraEvent.TEST_STRIKE, None))
 
 
 def start_motor_process(queue_to_motors, queue_from_motors, stop_flag):

@@ -10,7 +10,8 @@ measurements = {"ENC_M2_360_ROTATION": 145,
                 "ENC_M1_DEFAULT": 667,
                 "MM_TO_ENC_M1": 13,
                 "M1_ENCODER_LIMIT": 1910,
-                "M2_ENCODER_LIMIT": 2000}
+                "M2_ENCODER_LIMIT": 2000,
+                "ADDRESS": 0x80}
 
 
 class MotorMeasurements(pydantic.BaseModel):
@@ -27,3 +28,4 @@ class MotorMeasurements(pydantic.BaseModel):
     m1_mm_to_enc: float = measurements["MM_TO_ENC_M1"]
     m1_encoder_limit: int = measurements["M1_ENCODER_LIMIT"]
     m2_encoder_limit: int = measurements["M2_ENCODER_LIMIT"]
+    address: int = measurements["ADDRESS"]

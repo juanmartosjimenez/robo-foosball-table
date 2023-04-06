@@ -12,7 +12,7 @@ class FrontendEvent(Enum):
 
 class MotorEvent(Enum):
     """Events"""
-    MOVE_TO_MM_M1 = 1
+    MOVE_TO_POS = 1
     STRIKE = 2
     HOME_M1 = 3
     HOME_M2 = 4
@@ -20,6 +20,7 @@ class MotorEvent(Enum):
     ENCODER_VALS = 6
     MOVE_TO_START_POS = 7
     ERROR = 8
+    TEST_STRIKE = 9
 
 
 class CameraEvent(Enum):
@@ -30,16 +31,20 @@ class CameraEvent(Enum):
     ERROR = 4
     FPS = 5
     STRIKE = 6
+    TEST_STRIKE = 7
 
 
 class LinearMotorEvent(Enum):
     """Events"""
     MOVE_TO_POS = 1
-    STOP = 2
     HOME = 3
+    MOVE_TO_DEFAULT = 4
+
 
 class RotationalMotorEvent(Enum):
     """Events"""
     MOVE_TO_POS = 1
     STRIKE = 2
     HOME = 3
+    MOVE_TO_DEFAULT = 5
+    TEST_STRIKE = 6

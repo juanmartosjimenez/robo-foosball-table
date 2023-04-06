@@ -78,6 +78,12 @@ class CameraManager:
                 if event == CameraEvent.START_BALL_TRACKING:
                     self.queue_from_camera.put(("message", "Ball tracking started"))
                     self.start_ball_tracking()
+                elif event == CameraEvent.TEST_STRIKE:
+                    start_time = time.time()
+                    print("Camera manager: Testing strike start time", time.time())
+                    self.queue_from_camera.put((CameraEvent.TEST_STRIKE, "Testing strike"))
+                    print("Camera manager: Testing strike end time", time.time())
+                    print("Camera manager: Testing strike time", time.time() - start_time)
                 else:
                     raise ValueError(f"Unknown camera_manager event {str(data)}")
             except queue.Empty:

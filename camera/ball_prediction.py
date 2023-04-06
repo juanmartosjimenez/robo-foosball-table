@@ -115,13 +115,11 @@ class BallPrediction:
             if abs(curr_pos[0] - prev_pos[0]) < self.ball_radius * 2:
                 return None
 
-            print("Curr pos: ", curr_pos)
-            print("Prev pos: ", prev_pos)
+            #print("Curr pos: ", curr_pos)
+            #print("Prev pos: ", prev_pos)
             # Calculate the speed of the ball.
             x_speed = (curr_pos[0] - prev_pos[0]) / (1 / self.rate)
             y_speed = (curr_pos[1] - prev_pos[1]) / (1 / self.rate)
-            # print(x_speed, "x speed")
-            # print(y_speed, "y speed")
 
             # If x speed is negative then ball is going the wrong way.
             if x_speed < 0:
@@ -151,11 +149,11 @@ class BallPrediction:
                     if y_prime <= self.playing_field_top or y_prime >= self.playing_field_bottom:
                         # Get the time step at which the ball hits the wall which is less than the default time step.
                         if y_prime >= self.playing_field_bottom:
-                            print("HIT BOTTOM WALL")
+                            # print("HIT BOTTOM WALL")
                             time_step_prime = abs((y_pixel - self.playing_field_bottom) / y_speed)
                             y_prime = self.playing_field_bottom - 1
                         elif y_prime <= self.playing_field_top:
-                            print("HIT TOP WALL")
+                            # print("HIT TOP WALL")
                             time_step_prime = abs((self.playing_field_top - y_pixel) / y_speed)
                             y_prime = self.playing_field_top + 1
                         else:
@@ -171,7 +169,7 @@ class BallPrediction:
                             x_prime = self.target_x_pixel
                             predicted_trajectory.append((round(x_prime), round(y_prime)))
                             elapsed_time += time_step_prime
-                            print("BALL HIT TARGET", x_prime, y_prime, elapsed_time)
+                            # print("BALL HIT TARGET", x_prime, y_prime, elapsed_time)
                             # Break because the ball has reached the target position.
                             break
                         else:
@@ -182,7 +180,7 @@ class BallPrediction:
                             y_speed = -y_speed * self.restitution
                             # Update the X speed of the ball after bouncing off the wall.
                             x_speed = x_speed * self.restitution
-                            print("BALL HIT WALL AND DOES NOT HIT TARGET", x_prime, y_prime, elapsed_time)
+                            # print("BALL HIT WALL AND DOES NOT HIT TARGET", x_prime, y_prime, elapsed_time)
                     else:
                         if x_prime >= self.target_x_pixel:
                             time_step_prime = abs((self.target_x_pixel - x_pixel) / x_speed)
@@ -190,12 +188,12 @@ class BallPrediction:
                             x_prime = self.target_x_pixel
                             predicted_trajectory.append((round(x_prime), round(y_prime)))
                             elapsed_time += time_step_prime
-                            print("BALL DOES NOT HIT WALL AND DOES HIT TARGET", x_prime, y_prime, elapsed_time)
+                            # print("BALL DOES NOT HIT WALL AND DOES HIT TARGET", x_prime, y_prime, elapsed_time)
                             break
                         else:
                             predicted_trajectory.append((round(x_prime), round(y_prime)))
                             elapsed_time += remaining_time
-                            print("BALL DOES NOT HIT WALL AND DOES NOT HIT TARGET", x_prime, y_prime, elapsed_time)
+                            # print("BALL DOES NOT HIT WALL AND DOES NOT HIT TARGET", x_prime, y_prime, elapsed_time)
                     x_pixel = x_prime
                     y_pixel = y_prime
 
