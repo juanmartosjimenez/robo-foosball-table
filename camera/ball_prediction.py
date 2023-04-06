@@ -1,5 +1,7 @@
 import os
 
+import numpy as np
+
 from camera.camera_measurements import CameraMeasurements
 
 BALL_POSITION_FILE = os.path.join(os.path.dirname(__file__), "data/ball_positions.txt")
@@ -20,7 +22,7 @@ class BallPrediction:
         # ball position.
         self.threshold = 100
         # Restitution factor. Rate at which the ball bounces off the walls.
-        self.restitution = 1
+        self.restitution = 0.5
         # Buffer to store current ball pixels.
         self.buffer = []
         # Predicted ball pixels.
@@ -31,16 +33,21 @@ class BallPrediction:
         self.x_range_threshold = 100
         # Camera measurements
         self.camera_measurements = CameraMeasurements()
-        # Playing field bottom right pixel.
+        # Playing field top left pixel.
         self.playing_field_top_left = playing_field_top_left
 
+        self.playing_field_top = self.playing_field_top_left[1]
+        self.playing_field_bottom = self.playing_field_top_left[1] + self.y_pixels
+
         # Target x pixel position. Position of the goalie bar.
-        self.target_x_pixel = self.__convert_to_playing_field_pixel(target_x_pixel, 0)[0]
-        print("Target x pixel: ", self.target_x_pixel)
+        self.target_x_pixel = target_x_pixel
         # Ball radius in pixels.
         self.ball_radius = ball_radius
         # Time step in seconds.
         self.time_step = 0.2
+
+        if os.path.exists(BALL_POSITION_FILE):
+            os.remove(BALL_POSITION_FILE)
 
     def __convert_to_playing_field_pixel(self, x_pixel, y_pixel):
         """
@@ -53,21 +60,13 @@ class BallPrediction:
         y_pixel = y_pixel - self.playing_field_top_left[1]
         return x_pixel, y_pixel
 
-    def __convert_to_camera_pixel(self, x_pixel, y_pixel):
-        """
-        Converts the pixel position of the ball relative to the playing field to the pixel position of the ball.
-        :param x_pixel:
-        :param y_pixel:
-        :return:
-        """
-        x_pixel = x_pixel + self.playing_field_top_left[0]
-        y_pixel = y_pixel + self.playing_field_top_left[1]
-        return x_pixel, y_pixel
-
     def ball_writer(self, x_pixel, y_pixel):
         # Writes current ball position to file.
+        if x_pixel is None or y_pixel is None:
+            return
+        x_pixel, y_pixel = self.__convert_to_playing_field_pixel(x_pixel, y_pixel)
         with open(BALL_POSITION_FILE, "a+") as f:
-            f.write(f"{str(x_pixel)},{str(y_pixel)}/n")
+            f.write(f"{str(x_pixel)},{str(y_pixel)}\n")
 
     def add_new_empty(self):
         self.buffer.insert(0, None)
@@ -76,12 +75,12 @@ class BallPrediction:
             self.buffer = self.buffer[:20]
 
     def add_new(self, x_pixel, y_pixel):
-        x_pixel, y_pixel = self.__convert_to_playing_field_pixel(x_pixel, y_pixel)
-        self.ball_writer(x_pixel, y_pixel)
         self.buffer.insert(0, (x_pixel, y_pixel))
         # Remove old ball positions.
         if len(self.buffer) > 60:
             self.buffer = self.buffer[:20]
+        # Write ball position to file
+        self.ball_writer(x_pixel, y_pixel)
 
     def _predict(self):
         """
@@ -140,32 +139,40 @@ class BallPrediction:
             while x_speed > self.threshold and x_prime != self.target_x_pixel:
                 iterations += 1
                 elapsed_time = 0
+                x_speed = x_speed * self.damping
+                y_speed = y_speed * self.damping
                 while elapsed_time != self.time_step:
                     remaining_time = self.time_step - elapsed_time
                     # Calculate the next position of the ball after the time step.
-                    x_prime = x_pixel + x_speed * remaining_time * self.damping
-                    y_prime = y_pixel + y_speed * remaining_time * self.damping
+                    x_prime = x_pixel + x_speed * remaining_time
+                    y_prime = y_pixel + y_speed * remaining_time
 
                     # If the ball hits the top or bottom wall, bounce off the wall.
-                    if y_prime <= 0 or y_prime >= self.y_pixels:
+                    if y_prime <= self.playing_field_top or y_prime >= self.playing_field_bottom:
                         # Get the time step at which the ball hits the wall which is less than the default time step.
-                        if y_prime >= self.y_pixels:
-                            time_step_prime = abs((self.y_pixels - y_pixel) / (y_speed * self.damping))
-                            y_prime = self.y_pixels - 0.01
+                        if y_prime >= self.playing_field_bottom:
+                            print("HIT BOTTOM WALL")
+                            time_step_prime = abs((y_pixel - self.playing_field_bottom) / y_speed)
+                            y_prime = self.playing_field_bottom - 1
+                        elif y_prime <= self.playing_field_top:
+                            print("HIT TOP WALL")
+                            time_step_prime = abs((self.playing_field_top - y_pixel) / y_speed)
+                            y_prime = self.playing_field_top + 1
                         else:
-                            time_step_prime =  abs(y_pixel / (y_speed * self.damping))
-                            y_prime = 0.01
+                            raise ValueError("Ball is not hitting the top or bottom wall.")
 
                         # Calculate the next position of the ball after the time step.
-                        x_prime = x_pixel + x_speed * time_step_prime * self.damping
+                        x_prime = x_pixel + x_speed * time_step_prime
 
                         # If x position is past the target position, then find time to reach target position.
                         if x_prime >= self.target_x_pixel:
-                            time_step_prime = abs((self.target_x_pixel - x_pixel) / (x_speed * self.damping))
-                            y_prime = y_pixel + y_speed * time_step_prime * self.damping
+                            time_step_prime = abs((self.target_x_pixel - x_pixel) / x_speed)
+                            y_prime = y_pixel + y_speed * time_step_prime
                             x_prime = self.target_x_pixel
                             predicted_trajectory.append((round(x_prime), round(y_prime)))
                             elapsed_time += time_step_prime
+                            print("BALL HIT TARGET", x_prime, y_prime, elapsed_time)
+                            # Break because the ball has reached the target position.
                             break
                         else:
                             predicted_trajectory.append((round(x_prime), round(y_prime)))
@@ -175,35 +182,36 @@ class BallPrediction:
                             y_speed = -y_speed * self.restitution
                             # Update the X speed of the ball after bouncing off the wall.
                             x_speed = x_speed * self.restitution
+                            print("BALL HIT WALL AND DOES NOT HIT TARGET", x_prime, y_prime, elapsed_time)
                     else:
                         if x_prime >= self.target_x_pixel:
-                            time_step_prime = abs((self.target_x_pixel - x_pixel) / (x_speed * self.damping))
-                            y_prime = y_pixel + y_speed * time_step_prime * self.damping
+                            time_step_prime = abs((self.target_x_pixel - x_pixel) / x_speed)
+                            y_prime = y_pixel + y_speed * time_step_prime
                             x_prime = self.target_x_pixel
                             predicted_trajectory.append((round(x_prime), round(y_prime)))
                             elapsed_time += time_step_prime
+                            print("BALL DOES NOT HIT WALL AND DOES HIT TARGET", x_prime, y_prime, elapsed_time)
                             break
                         else:
                             predicted_trajectory.append((round(x_prime), round(y_prime)))
                             elapsed_time += remaining_time
+                            print("BALL DOES NOT HIT WALL AND DOES NOT HIT TARGET", x_prime, y_prime, elapsed_time)
+                    x_pixel = x_prime
+                    y_pixel = y_prime
 
                 total_elapsed_time += elapsed_time
                 # For X axis don't do bounce prediction assuming that it's going to hit a player or the goal before it
                 # hits the wall.
 
-                # Reduce the speed of the ball by the damping factor.
-                x_speed = x_speed * self.damping
-                y_speed = y_speed * self.damping
                 # Update the position of the ball for next iteration.
                 x_pixel = x_prime
                 y_pixel = y_prime
 
             # Elapsed time until ball was moving below the threshold or until it hit the target position.
+            print("Total elapsed time: ", total_elapsed_time)
             if x_prime == self.target_x_pixel:
-                print("Ball predicted to reach target position.")
                 return predicted_trajectory
             else:
-                print("Ball predicted to move below threshold.")
                 return None
 
         # If only one point is in the buffer, use the current ball position if it is within the x range threshold.
@@ -216,9 +224,5 @@ class BallPrediction:
 
     def get_predicted(self):
         out = self._predict()
-        if out is not None:
-            _, out = self.__convert_to_camera_pixel(0, out)
-        if isinstance(out, list):
-            out = list(map(lambda elem: self.__convert_to_camera_pixel(elem[0], elem[1]), out))
         self.predicted.append(out)
         return out
