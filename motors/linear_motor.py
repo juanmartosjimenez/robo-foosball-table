@@ -54,19 +54,19 @@ class LinearMotor:
         :return:
         """
         mm_distance_to_goalie_2 = 240
-        mm_distance_to_goalie_1 = 35
-        mm_distance_to_goalie_3 = 445
+        mm_distance_to_goalie_1 = 45
+        mm_distance_to_goalie_3 = 435
         mm_goalie_2_movement = self._mm_to_encoder(mm - mm_distance_to_goalie_2)
         mm_goalie_1_movement = self._mm_to_encoder(mm - mm_distance_to_goalie_1)
         mm_goalie_3_movement = self._mm_to_encoder(mm - mm_distance_to_goalie_3)
         if -650 < mm_goalie_2_movement < self.measurements.m1_encoder_limit + 650:
-            print("goalie2 moving")
+            #print("goalie2 moving")
             self._move_to_pos(mm_goalie_2_movement)
         elif mm_goalie_2_movement < -650:
-            print("goalie1 moving")
+            #print("goalie1 moving")
             self._move_to_pos(mm_goalie_1_movement)
         elif mm_goalie_2_movement > self.measurements.m1_encoder_limit:
-            print("goalie3 moving")
+            #print("goalie3 moving")
             self._move_to_pos(mm_goalie_3_movement)
 
     def _mm_to_encoder(self, mm: float) -> int:
@@ -85,8 +85,8 @@ class LinearMotor:
         """
         # if pos > self.right_limit:
         # raise ValueError("Position out of range")
-        if pos < 0: pos = 50
-        if pos > self.measurements.m1_encoder_limit: pos = self.measurements.m1_encoder_limit - 50
+        if pos < 0: pos = 100
+        if pos > self.measurements.m1_encoder_limit: pos = self.measurements.m1_encoder_limit - 100
         with self.lock:
             self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 16000, 4000, 16000, pos, 1)
 

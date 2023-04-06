@@ -17,7 +17,7 @@ class BallPrediction:
         # Rate at which new ball positions are added. Should be 60fps.
         self.rate = rate
         # Damping factor. Rate at which the ball slows down.
-        self.damping = 0.8
+        self.damping = 0.7
         # Threshold speed. Speed at which prediction of ball is no longer taking into account but rather the current
         # ball position.
         self.threshold = 100
@@ -112,7 +112,7 @@ class BallPrediction:
 
             # If change in position is less than the ball radius then ball is stationary and no change in position is
             # needed.
-            if abs(curr_pos[0] - prev_pos[0]) < self.ball_radius * 2:
+            if abs(curr_pos[0] - prev_pos[0]) < 5:
                 return None
 
             #print("Curr pos: ", curr_pos)
@@ -223,4 +223,6 @@ class BallPrediction:
     def get_predicted(self):
         out = self._predict()
         self.predicted.append(out)
+        if len(self.predicted) > 100:
+            self.predicted = self.predicted[:100]
         return out

@@ -1,5 +1,6 @@
 import multiprocessing
 
+
 class ProcessManager:
     def __init__(self):
         self.queue_from_camera = multiprocessing.Queue()

@@ -101,6 +101,7 @@ class CameraManager:
         return lower_hsv, higher_hsv
 
     def draw_predicted_path(self, frame, pred):
+        last_point = None
         if pred is None:
             return
         elif isinstance(pred, (list, np.ndarray)):
@@ -110,13 +111,19 @@ class CameraManager:
                     break
                 cv2.line(frame, p, pred[ii + 1], (0, 0, 255), 2)
                 cv2.putText(frame, f"Point {str(ii+1)} {str(p)}", p, cv2.FONT_HERSHEY_SIMPLEX, 0.5,(255, 255, 0), 1)
-
             cv2.circle(frame, (pred[0][0], pred[0][1]), 10, (0, 255, 255), -1)
             cv2.circle(frame, (pred[-1][0], pred[-1][1]), 10, (0, 255, 255), -1)
+            last_point = (pred[-1][0], pred[-1][1])
         else:
             cv2.circle(frame, (self.goalie_x_pixel_position, pred), 10, (0, 255, 0), -1)
             cv2.putText(frame, "Prediction", (self.goalie_x_pixel_position, pred), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                         (255, 0, 0), 1)
+            last_point = (self.goalie_x_pixel_position, pred)
+
+        if last_point is not None:
+            self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (last_point[0], last_point[1]),
+                                                                       "mm": self.convert_pixels_to_mm_playing_field(
+                                                                           last_point[0], last_point[1])}))
 
     def start_ball_tracking(self):
         # Define the lower and upper HSV boundaries of the foosball and initialize
@@ -330,6 +337,7 @@ class CameraManager:
                 continue
             else:
                 good_contours.append(contour)
+        good_contours = []
         if len(good_contours) != 1:
             print("Failed to detect contours using last saved values")
             if os.path.exists(CORNERS_FILE):
@@ -343,8 +351,8 @@ class CameraManager:
             rect = cv2.minAreaRect(c)
             box = cv2.boxPoints(rect)
             box = box.astype(int)
-            with open(CORNERS_FILE, "w") as f:
-                json.dump(box.tolist(), f)
+            #with open(CORNERS_FILE, "w") as f:
+                #json.dump(box.tolist(), f)
 
         cv2.drawContours(frame, [box], 0, (0, 255, 0), 1)
         # Blue
