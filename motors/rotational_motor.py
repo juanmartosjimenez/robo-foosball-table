@@ -5,7 +5,7 @@ from queue import Queue
 
 from motors.motor_measurements import MotorMeasurements
 from motors.roboclaw import Roboclaw
-from other.events import LinearMotorEvent, RotationalMotorEvent
+from other.events import RotationalMotorEvent
 
 
 class RotationalMotor:
@@ -17,6 +17,7 @@ class RotationalMotor:
         self.roboclaw: Roboclaw = roboclaw
         self.stop_flag = stop_flag
         self.lock = lock
+        self.last_strike = None
 
     def event_loop(self):
         while True:
@@ -38,7 +39,10 @@ class RotationalMotor:
             if last_event is not None:
                 event = last_event[0]
                 if event == RotationalMotorEvent.STRIKE:
-                    self.strike()
+                    # Only strike if the last strike was more than 1 second ago.
+                    if self.last_strike is None or time.time() - self.last_strike > 1:
+                        self.strike()
+                        self.last_strike = time.time()
                 elif event == RotationalMotorEvent.HOME:
                     self.home()
                 elif event == RotationalMotorEvent.MOVE_TO_DEFAULT:
@@ -79,6 +83,7 @@ class RotationalMotor:
 
     def test_strike(self):
         start_time = time.time()
+        print("Latency test end time", time.time())
         print("Rotational motor: Test strike start time", start_time)
         self.strike()
         print("Rotational motor: Test strike end time", time.time() - start_time)

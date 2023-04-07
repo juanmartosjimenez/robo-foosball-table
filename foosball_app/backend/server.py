@@ -17,7 +17,8 @@ def index():
 
 @app.route('/power_on')
 def power_on():
-    app.queue_from_flask.put_nowait((FlaskAppEvent.POWER_ON, ))
+    app.queue_from_flask.put_nowait((FlaskAppEvent.POWER_ON,))
+
 
 @app.route('/start')
 def start():
@@ -27,7 +28,7 @@ def start():
 
 @app.route('/reset')
 def reset():
-    app.queue_from_flask.put_nowait((FlaskAppEvent.STOP, ))
+    app.queue_from_flask.put_nowait((FlaskAppEvent.STOP,))
     return 'Reset Button Clicked'
 
 

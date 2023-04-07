@@ -1,14 +1,17 @@
 import os
+import time
+from multiprocessing import Queue
 
 import numpy as np
 
 from camera.camera_measurements import CameraMeasurements
+from other.events import CameraEvent
 
 BALL_POSITION_FILE = os.path.join(os.path.dirname(__file__), "data/ball_positions.txt")
 
 
 class BallPrediction:
-    def __init__(self, x_pixels, y_pixels, rate, queue_from_camera, target_x_pixel, playing_field_top_left,
+    def __init__(self, x_pixels, y_pixels, rate, queue_from_camera: Queue, target_x_pixel, playing_field_top_left,
                  ball_radius):
         # Total number of x pixels in the playing field.
         self.x_pixels = x_pixels
@@ -206,8 +209,10 @@ class BallPrediction:
                 y_pixel = y_prime
 
             # Elapsed time until ball was moving below the threshold or until it hit the target position.
-            print("Total elapsed time: ", total_elapsed_time)
             if x_prime == self.target_x_pixel:
+                if total_elapsed_time < 0.5:
+                    pass
+                    #self.queue_from_camera.put_nowait((CameraEvent.STRIKE, None))
                 return predicted_trajectory
             else:
                 return None
@@ -224,5 +229,5 @@ class BallPrediction:
         out = self._predict()
         self.predicted.append(out)
         if len(self.predicted) > 100:
-            self.predicted = self.predicted[:100]
+            self.predicted = self.predicted[-100:]
         return out

@@ -2,7 +2,7 @@ import multiprocessing as mp
 import queue
 import time
 from multiprocessing import Process
-from app import Frontend
+from python_frontend.tkinter_frontend import Frontend
 from camera.camera_manager import CameraManager
 from motors.motor_manager import MotorManager
 from other.events import MotorEvent, FrontendEvent, CameraEvent, FlaskAppEvent
@@ -18,6 +18,8 @@ class ProcessManager:
         self.queue_from_tkinter_frontend = mp.Queue()
         self.queue_to_flask = mp.Queue()
         self.queue_from_flask = mp.Queue()
+        self.queue_to_ball_prediction = mp.Queue()
+        self.queue_from_ball_prediction = mp.Queue()
         self.stop_flag = mp.Event()
         self.tkinter_frontend_process = Process(target=start_tkinter_process,
                                                 args=(self.queue_to_tkinter_frontend, self.queue_from_tkinter_frontend))
@@ -38,6 +40,15 @@ class ProcessManager:
     def run(self):
         self.tkinter_frontend_process.start()
         # self.flask_process.start()
+        self.event_loop()
+
+    def event_loop(self):
+        while True:
+            time.sleep(0.001)
+            self._read_camera()
+            self._read_motors()
+            self._read_tkinter_frontend()
+            self._read_flask()
 
     def _clear_queues(self):
         while not self.queue_from_camera.empty():
@@ -166,7 +177,7 @@ def start_motor_process(queue_to_motors, queue_from_motors, stop_flag):
         raise e
 
 
-def start_tkinter_process(queue_to_tkinter_frontend, queue_from_tkinter_frontend, stop_flag):
+def start_tkinter_process(queue_to_tkinter_frontend, queue_from_tkinter_frontend):
     try:
         frontend = Frontend(queue_to_tkinter_frontend, queue_from_tkinter_frontend)
         frontend.run()

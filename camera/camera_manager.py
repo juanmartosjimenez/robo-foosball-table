@@ -11,7 +11,6 @@ import cv2
 import imutils
 import numpy as np
 from camera.aruco import detect_markers, get_pixel_to_mm, draw_markers, pose_estimation
-from other.prediction_model import calculate_end_pos
 import pyrealsense2 as rs
 
 from camera.camera_measurements import CameraMeasurements
@@ -80,7 +79,7 @@ class CameraManager:
                     self.start_ball_tracking()
                 elif event == CameraEvent.TEST_STRIKE:
                     start_time = time.time()
-                    print("Camera manager: Testing strike start time", time.time())
+                    print("LATENCY TEST START", time.time())
                     self.queue_from_camera.put((CameraEvent.TEST_STRIKE, "Testing strike"))
                     print("Camera manager: Testing strike end time", time.time())
                     print("Camera manager: Testing strike time", time.time() - start_time)
@@ -100,30 +99,35 @@ class CameraManager:
         higher_hsv = np.array((target_object_rgb[0] + 50, target_object_rgb[1] + 50, target_object_rgb[2] + 50))
         return lower_hsv, higher_hsv
 
-    def draw_predicted_path(self, frame, pred):
+    def draw_predicted_path(self, frame, pred, old_pred, draw=True):
         last_point = None
-        if pred is None:
+        draw_path = pred if pred is not None else old_pred
+        if draw_path is None:
             return
-        elif isinstance(pred, (list, np.ndarray)):
-            for ii, p in enumerate(pred):
-                if ii == len(pred) - 1:
-                    cv2.putText(frame, f"Point {str(ii + 1)} {str(p)}", p, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
-                    break
-                cv2.line(frame, p, pred[ii + 1], (0, 0, 255), 2)
-                cv2.putText(frame, f"Point {str(ii+1)} {str(p)}", p, cv2.FONT_HERSHEY_SIMPLEX, 0.5,(255, 255, 0), 1)
-            cv2.circle(frame, (pred[0][0], pred[0][1]), 10, (0, 255, 255), -1)
-            cv2.circle(frame, (pred[-1][0], pred[-1][1]), 10, (0, 255, 255), -1)
-            last_point = (pred[-1][0], pred[-1][1])
+        elif isinstance(draw_path, (list, np.ndarray)):
+            last_point = (draw_path[-1][0], draw_path[-1][1])
+            if draw:
+                for ii, p in enumerate(draw_path):
+                    if ii == len(draw_path) - 1:
+                        cv2.putText(frame, f"Point {str(ii + 1)} {str(p)}", p, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+                        break
+                    cv2.line(frame, p, draw_path[ii + 1], (0, 0, 255), 2)
+                    cv2.putText(frame, f"Point {str(ii+1)} {str(p)}", p, cv2.FONT_HERSHEY_SIMPLEX, 0.5,(255, 255, 0), 1)
+                cv2.circle(frame, (draw_path[0][0], draw_path[0][1]), 10, (0, 255, 255), -1)
+                cv2.circle(frame, (draw_path[-1][0], draw_path[-1][1]), 10, (0, 255, 255), -1)
         else:
-            cv2.circle(frame, (self.goalie_x_pixel_position, pred), 10, (0, 255, 0), -1)
-            cv2.putText(frame, "Prediction", (self.goalie_x_pixel_position, pred), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                        (255, 0, 0), 1)
-            last_point = (self.goalie_x_pixel_position, pred)
+            last_point = (self.goalie_x_pixel_position, draw_path)
+            if draw:
+                cv2.circle(frame, (self.goalie_x_pixel_position, draw_path), 10, (0, 255, 0), -1)
+                cv2.putText(frame, "Prediction", (self.goalie_x_pixel_position, draw_path), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                            (255, 0, 0), 1)
 
-        if last_point is not None:
+        if last_point is not None and pred is not None:
+            print("Predicted ball position", last_point)
             self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (last_point[0], last_point[1]),
                                                                        "mm": self.convert_pixels_to_mm_playing_field(
                                                                            last_point[0], last_point[1])}))
+        return draw_path
 
     def start_ball_tracking(self):
         # Define the lower and upper HSV boundaries of the foosball and initialize
@@ -216,13 +220,7 @@ class CameraManager:
                 self.ball_prediction.add_new_empty()
 
             pred = self.ball_prediction.get_predicted()
-            if pred is not None:
-                old_pred = pred
-            self.draw_predicted_path(frame, old_pred)
-            # Calculate the predicted ball position
-            # end_y = calculate_end_pos(pts, self.camera_measurements.camera_fps, radius, self.pixel_top_left_corner[1], self.pixel_bottom_left_corner[1], self.goalie_x_pixel_position)
-            #if end_y is not None:
-                #self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (self.goalie_x_pixel_position, end_y), "mm": self.convert_pixels_to_mm_playing_field(self.goalie_x_pixel_position, end_y)}))
+            old_pred = self.draw_predicted_path(frame, pred, old_pred, draw=True)
 
             # Display the current frame
             cv2.imshow("Frame", frame)

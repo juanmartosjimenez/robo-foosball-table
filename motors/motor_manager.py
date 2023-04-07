@@ -73,7 +73,7 @@ class MotorManager:
                 elif event == MotorEvent.MOVE_TO_POS:
                     self.queue_to_linear_motor.put_nowait((LinearMotorEvent.MOVE_TO_POS, data[1]))
                 elif event == MotorEvent.STRIKE:
-                    self.queue_to_linear_motor.put_nowait((RotationalMotorEvent.STRIKE, None))
+                    self.queue_to_rotational_motor.put_nowait((RotationalMotorEvent.STRIKE, None))
                 elif event == MotorEvent.ENCODER_VALS:
                     encoder_val = self.read_encoders()
                     self.queue_from_motors.put_nowait((MotorEvent.ENCODER_VALS, {"encoders": encoder_val,
@@ -81,6 +81,8 @@ class MotorManager:
                                                                                      encoder_val[0]),
                                                                                  "degrees_m2": self._encoder_to_degrees_m2(
                                                                                      encoder_val[0])}))
+                elif event == MotorEvent.READ_BUFFER:
+                    buffer = self.roboclaw.ReadBuffers(self.address)
                 elif event == MotorEvent.MOVE_TO_START_POS:
                     self.queue_to_rotational_motor.put_nowait((RotationalMotorEvent.MOVE_TO_DEFAULT, None))
                     self.queue_to_linear_motor.put_nowait((LinearMotorEvent.MOVE_TO_DEFAULT, None))
@@ -97,6 +99,7 @@ class MotorManager:
                     # Every 1 seconds, read the encoders.
                     start_time = time.time()
                     self.queue_to_motors.put_nowait((MotorEvent.ENCODER_VALS, None))
+                    self.queue_to_motors.put_nowait((MotorEvent.READ_BUFFER, None))
                     end_time = time.time()
                     # print("Reading encoders time elapsed", end_time - start_time)
                 pass

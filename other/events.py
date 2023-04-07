@@ -29,6 +29,7 @@ class MotorEvent(Enum):
     MOVE_TO_START_POS = 7
     ERROR = 8
     TEST_STRIKE = 9
+    READ_BUFFER = 10
 
 
 class CameraEvent(Enum):
