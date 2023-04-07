@@ -1,6 +1,7 @@
 import os
 import time
 from multiprocessing import Queue
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -29,7 +30,7 @@ class BallPrediction:
         # Buffer to store current ball pixels.
         self.buffer = []
         # Predicted ball pixels.
-        self.predicted = []
+        self.predicted_buffer = []
         # Queue used to send out
         self.queue_from_camera = queue_from_camera
         # X range threshold. Number of pixels apart from goalie for predicted path to be taken into account.
@@ -48,6 +49,7 @@ class BallPrediction:
         self.ball_radius = ball_radius
         # Time step in seconds.
         self.time_step = 0.2
+        self.predicted_path = None
 
         if os.path.exists(BALL_POSITION_FILE):
             os.remove(BALL_POSITION_FILE)
@@ -85,11 +87,12 @@ class BallPrediction:
         # Write ball position to file
         self.ball_writer(x_pixel, y_pixel)
 
-    def _predict(self):
+    def _predict(self) -> Optional[Tuple]:
         """
         Predicts the ball position based on the current ball position and the previous ball position.
         :return: Y pixel position of the predicted ball position.
         """
+        self.predicted_path = None
         # If more than two points are in the buffer, predict the ball position.
         if len(self.buffer) >= 2:
             curr_pos = self.buffer[0]
@@ -102,24 +105,24 @@ class BallPrediction:
             # If the ball is behind the target position then move to position and strike.
             # TODO make the ball strike.
             if curr_pos[0] > self.target_x_pixel:
-                return curr_pos[1]
+                return (curr_pos[1],)
 
             # The ball was not detected during the previous frame. So move to the current position.
             if prev_pos is None:
-                return curr_pos[1]
+                return (curr_pos[1],)
 
             # If the ball is within the x range threshold, use the current ball position instead of predicting
             # trajectory.
             if self.target_x_pixel - curr_pos[0] < self.x_range_threshold:
-                return curr_pos[1]
+                return (curr_pos[1],)
 
             # If change in position is less than the ball radius then ball is stationary and no change in position is
             # needed.
             if abs(curr_pos[0] - prev_pos[0]) < 5:
                 return None
 
-            #print("Curr pos: ", curr_pos)
-            #print("Prev pos: ", prev_pos)
+            # print("Curr pos: ", curr_pos)
+            # print("Prev pos: ", prev_pos)
             # Calculate the speed of the ball.
             x_speed = (curr_pos[0] - prev_pos[0]) / (1 / self.rate)
             y_speed = (curr_pos[1] - prev_pos[1]) / (1 / self.rate)
@@ -212,8 +215,8 @@ class BallPrediction:
             if x_prime == self.target_x_pixel:
                 if total_elapsed_time < 0.5:
                     pass
-                    #self.queue_from_camera.put_nowait((CameraEvent.STRIKE, None))
-                return predicted_trajectory
+                    # self.queue_from_camera.put_nowait((CameraEvent.STRIKE, None))
+                return (y_prime, predicted_trajectory)
             else:
                 return None
 
@@ -227,7 +230,19 @@ class BallPrediction:
 
     def get_predicted(self):
         out = self._predict()
-        self.predicted.append(out)
-        if len(self.predicted) > 100:
-            self.predicted = self.predicted[-100:]
-        return out
+        out_val = None
+        if out is None:
+            self.predicted_buffer.insert(0, None)
+        else:
+            out_val = out[0]
+            self.predicted_buffer.insert(0, out[0])
+            if len(out) == 2:
+                self.predicted_path = out[1]
+
+        if len(self.predicted_buffer) > 100:
+            self.predicted_buffer = self.predicted_buffer[:50]
+        return out_val
+
+    def get_path(self) -> Optional[Tuple]:
+        return self.predicted_path
+
