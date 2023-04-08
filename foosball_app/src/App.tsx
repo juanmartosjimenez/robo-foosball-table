@@ -113,7 +113,7 @@ const App = () => {
             className={powerOn ? 'dimmed' : 'not-pressed'}
             onClick={handlePowerOn}
           >
-            PowerOn 
+            Power On 
           </Button>
 
           <Button
@@ -131,7 +131,7 @@ const App = () => {
             className={resetPressed ? 'dimmed' : 'not-pressed'}
             onClick={handleResetPress}
           >
-            Stop Game 
+            Shut Down 
           </Button>
         </div>
         
