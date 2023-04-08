@@ -42,8 +42,15 @@ class ProcessManager:
         self.event_loop()
 
     def event_loop(self):
+        start_time = time.time()
+        iterations = 0
         while True:
-            time.sleep(0.001)
+            iterations += 1
+            if time.time() - start_time > 1:
+                start_time = time.time()
+                print("Events per second:", iterations)
+                iterations = 0
+
             self._read_camera()
             self._read_motors()
             self._read_tkinter_frontend()
@@ -106,6 +113,8 @@ class ProcessManager:
                 self.queue_to_motors.put_nowait((MotorEvent.STRIKE, None))
             elif event == CameraEvent.TEST_STRIKE:
                 self.queue_to_motors.put_nowait((MotorEvent.TEST_STRIKE, None))
+            elif event == CameraEvent.CURRENT_FRAME:
+                self.queue_to_tkinter_frontend.put_nowait((FrontendEvent.CURRENT_FRAME, data))
             else:
                 print(f"Unknown read_camera event: {str(queue_data)}")
         except queue.Empty:
@@ -147,7 +156,6 @@ class ProcessManager:
             elif event == FrontendEvent.POWER_ON:
                 self._power_on()
             elif event == FrontendEvent.STOP:
-                print("Read stop from tkinter frontend")
                 self.stop_flag.set()
             elif event == FrontendEvent.ERROR:
                 self.stop_flag.set()

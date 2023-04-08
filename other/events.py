@@ -15,6 +15,7 @@ class FrontendEvent(Enum):
     HOME_M2 = 10
     MOVE_TO_START_POS = 11
     TEST_LATENCY = 12
+    CURRENT_FRAME = 13
 
 
 
@@ -41,6 +42,7 @@ class CameraEvent(Enum):
     FPS = 5
     STRIKE = 6
     TEST_STRIKE = 7
+    CURRENT_FRAME = 8
 
 
 class LinearMotorEvent(Enum):

@@ -217,9 +217,9 @@ class CameraManager:
             self.draw_predicted_path(frame, old_path)
 
             # Display the current frame
-            cv2.imshow("Frame", frame)
-            cv2.imshow("Mask", mask)
-            key = cv2.waitKey(1) & 0xFF
+            self.queue_from_camera.put((CameraEvent.CURRENT_FRAME, frame))
+            # cv2.imshow("Frame", frame)
+            # key = cv2.waitKey(1) & 0xFF
 
     def __start_pipe(self):
         """

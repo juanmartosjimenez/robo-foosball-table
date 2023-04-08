@@ -54,9 +54,7 @@ class MotorManager:
         """
         start_time = time.time()
         while True:
-            time.sleep(0.01)
             if self.stop_flag.is_set():
-                print("MOTOR MANAGER STOPPED")
                 try:
                     self.rotational_motor_thread.join()
                     self.linear_motor_thread.join()

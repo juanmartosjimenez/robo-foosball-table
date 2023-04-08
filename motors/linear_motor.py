@@ -40,7 +40,6 @@ class LinearMotor:
             if last_event is not None:
                 event = last_event[0]
                 if event == LinearMotorEvent.MOVE_TO_POS:
-                    print(last_event[1])
                     self.move_to_pos(last_event[1])
                 elif event == LinearMotorEvent.HOME:
                     self.home()

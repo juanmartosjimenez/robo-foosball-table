@@ -234,7 +234,7 @@ class BallPrediction:
         if out is None:
             self.predicted_buffer.insert(0, None)
         else:
-            out_val = out[0]
+            out_val = round(out[0])
             self.predicted_buffer.insert(0, out[0])
             if len(out) == 2:
                 self.predicted_path = out[1]

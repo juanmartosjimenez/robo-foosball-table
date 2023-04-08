@@ -2,7 +2,11 @@ import tkinter as tk
 from multiprocessing import Queue
 from queue import Empty
 from tkinter import messagebox
+
+import cv2
+
 from other.events import FrontendEvent
+from PIL import ImageTk, Image
 
 
 def report_callback_exception(self, exc, val, tb):
@@ -62,6 +66,10 @@ class Frontend(tk.Tk):
                                              command=lambda: self.queue_from_frontend.put_nowait(
                                                  (FrontendEvent.TEST_LATENCY, None)))
         self.test_latency_button.grid(row=7, column=0)
+        # video feed
+        self.video_feed = tk.Label(self, bg="white", height=600)
+        self.video_feed.grid(row=8, column=0, columnspan=2, sticky="NSWE")
+
         self.event_loop()
 
     def start_ball_tracking(self):
@@ -96,6 +104,13 @@ class Frontend(tk.Tk):
     def run(self):
         self.mainloop()
 
+    def update_frame(self, frame):
+        cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
+        img = Image.fromarray(cv2image)
+        imgtk = ImageTk.PhotoImage(image=img)
+        self.video_feed.imgtk = imgtk
+        self.video_feed.configure(image=imgtk)
+
     def event_loop(self):
 
         try:
@@ -112,6 +127,8 @@ class Frontend(tk.Tk):
                 self.display_error(event[1])
             elif event_type == FrontendEvent.FPS:
                 self.update_fps(event[1])
+            elif event_type == FrontendEvent.CURRENT_FRAME:
+                self.update_frame(event[1])
         except Empty:
             pass
         self.after(1, self.event_loop)
