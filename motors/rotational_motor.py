@@ -21,7 +21,7 @@ class RotationalMotor:
 
     def event_loop(self):
         while True:
-            time.sleep(0.01)
+            time.sleep(0.001)
             last_event = None
             if self.stop_flag.is_set():
                 try:

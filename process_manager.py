@@ -16,6 +16,7 @@ class ProcessManager:
         self.queue_to_motors = mp.Queue()
         self.queue_to_tkinter_frontend = mp.Queue()
         self.queue_from_tkinter_frontend = mp.Queue()
+        self.camera_queue_to_tkinter_frontend = mp.Queue()
         self.queue_to_flask = mp.Queue()
         self.queue_from_flask = mp.Queue()
         self.queue_to_ball_prediction = mp.Queue()
@@ -23,7 +24,7 @@ class ProcessManager:
         self.stop_flag = mp.Event()
         self.stop_flag.set()
         self.tkinter_frontend_process = Process(target=start_tkinter_process,
-                                                args=(self.queue_to_tkinter_frontend, self.queue_from_tkinter_frontend))
+                                                args=(self.queue_to_tkinter_frontend, self.queue_from_tkinter_frontend, self.camera_queue_to_tkinter_frontend))
         self.camera_process = Process(target=start_camera_process,
                                       args=(self.queue_to_camera, self.queue_from_camera, self.stop_flag))
         self.motor_process = Process(target=start_motor_process,
@@ -114,7 +115,7 @@ class ProcessManager:
             elif event == CameraEvent.TEST_STRIKE:
                 self.queue_to_motors.put_nowait((MotorEvent.TEST_STRIKE, None))
             elif event == CameraEvent.CURRENT_FRAME:
-                self.queue_to_tkinter_frontend.put_nowait((FrontendEvent.CURRENT_FRAME, data))
+                self.camera_queue_to_tkinter_frontend.put_nowait((FrontendEvent.CURRENT_FRAME, data))
             else:
                 print(f"Unknown read_camera event: {str(queue_data)}")
         except queue.Empty:
@@ -185,9 +186,9 @@ def start_motor_process(queue_to_motors, queue_from_motors, stop_flag):
         raise e
 
 
-def start_tkinter_process(queue_to_tkinter_frontend, queue_from_tkinter_frontend):
+def start_tkinter_process(queue_to_tkinter_frontend, queue_from_tkinter_frontend, camera_queue_to_frontend):
     try:
-        frontend = Frontend(queue_to_tkinter_frontend, queue_from_tkinter_frontend)
+        frontend = Frontend(queue_to_tkinter_frontend, queue_from_tkinter_frontend, camera_queue_to_frontend)
         frontend.run()
     except Exception as e:
         queue_from_tkinter_frontend.put_nowait(("ERROR", str(e)))

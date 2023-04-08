@@ -4,7 +4,7 @@ import os
 import queue
 import time
 from collections import deque
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Literal
 from math import sqrt
 
 import cv2
@@ -55,7 +55,9 @@ class CameraManager:
         self.queue_from_camera: Optional[multiprocessing.Queue] = queue_from_camera
         playing_fields_x_pixels = self.pixel_top_right_corner[0] - self.pixel_top_left_corner[0]
         playing_fields_y_pixels = self.pixel_bottom_left_corner[1] - self.pixel_top_left_corner[1]
-        self.ball_prediction = BallPrediction(playing_fields_x_pixels, playing_fields_y_pixels, self.camera_measurements.camera_fps, self.queue_from_camera, self.goalie_x_pixel_position, self.pixel_top_left_corner, 15)
+        self.ball_prediction = BallPrediction(playing_fields_x_pixels, playing_fields_y_pixels,
+                                              self.camera_measurements.camera_fps, self.queue_from_camera,
+                                              self.goalie_x_pixel_position, self.pixel_top_left_corner, 15)
 
     def draw_aruco_markers(self):
         # Draw the aruco markers
@@ -107,11 +109,16 @@ class CameraManager:
                 cv2.putText(frame, f"Point {str(ii + 1)} {str(p)}", p, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
                 break
             cv2.line(frame, p, path[ii + 1], (0, 0, 255), 2)
-            cv2.putText(frame, f"Point {str(ii+1)} {str(p)}", p, cv2.FONT_HERSHEY_SIMPLEX, 0.5,(255, 255, 0), 1)
+            cv2.putText(frame, f"Point {str(ii + 1)} {str(p)}", p, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
         cv2.circle(frame, (path[0][0], path[0][1]), 10, (0, 255, 255), -1)
 
+    def start_ball_tracking(self, mode: Literal["Speed", "Display"] = "Speed"):
 
-    def start_ball_tracking(self):
+        if mode == "Speed":
+            mode = 1
+        elif mode == "Display":
+            mode = 2
+
         # Define the lower and upper HSV boundaries of the foosball and initialize
         # the list of center points
         mask1_lower = (0, 167, 118)
@@ -119,7 +126,6 @@ class CameraManager:
         mask2_lower = (160, 142, 134)
         mask2_upper = (255, 255, 255)
 
-        pts = deque(maxlen=10)
 
         # Initialize variables and loop to continuously get and process video
         fps = 0
@@ -132,9 +138,12 @@ class CameraManager:
             if self.stop_flag.is_set():
                 return
             # Get the RealSense frame to be processed by OpenCV
+            whole_loop_run_time = time.time()
+            start_time = time.time()
             frame = self.read_color_frame()
+            read_color_frame_time = round(time.time() - start_time, 4)
             fps += 1
-            processing_time = time.time()
+            start_time = time.time()
             if time.time() - fps_time > 1:
                 self.queue_from_camera.put((CameraEvent.FPS, fps))
                 fps = 0
@@ -167,18 +176,21 @@ class CameraManager:
             cnts = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cnts = imutils.grab_contours(cnts)
 
-            cv2.line(frame, self.pixel_bottom_left_corner, self.pixel_top_left_corner, (0, 0, 255), 1)
-            cv2.putText(frame, "Bottom Left", self.pixel_bottom_left_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-            cv2.line(frame, self.pixel_top_left_corner, self.pixel_top_right_corner, (0, 0, 255), 1)
-            cv2.putText(frame, "Top Left", self.pixel_top_left_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-            cv2.line(frame, self.pixel_top_right_corner, self.pixel_bottom_right_corner, (0, 0, 255), 1)
-            cv2.putText(frame, "Top Right", self.pixel_top_right_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-            cv2.line(frame, self.pixel_bottom_right_corner, self.pixel_bottom_left_corner, (0, 0, 255), 1)
-            cv2.putText(frame, "Bottom Right", self.pixel_bottom_right_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            if mode == 2:
+                cv2.line(frame, self.pixel_bottom_left_corner, self.pixel_top_left_corner, (0, 0, 255), 1)
+                cv2.putText(frame, "Bottom Left", self.pixel_bottom_left_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255),
+                            1)
+                cv2.line(frame, self.pixel_top_left_corner, self.pixel_top_right_corner, (0, 0, 255), 1)
+                cv2.putText(frame, "Top Left", self.pixel_top_left_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                cv2.line(frame, self.pixel_top_right_corner, self.pixel_bottom_right_corner, (0, 0, 255), 1)
+                cv2.putText(frame, "Top Right", self.pixel_top_right_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                cv2.line(frame, self.pixel_bottom_right_corner, self.pixel_bottom_left_corner, (0, 0, 255), 1)
+                cv2.putText(frame, "Bottom Right", self.pixel_bottom_right_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                            (0, 0, 255), 1)
 
-
-            # Draw the goalie line
-            cv2.line(frame, (self.goalie_x_pixel_position, self.pixel_top_right_corner[1]), (self.goalie_x_pixel_position, self.pixel_bottom_right_corner[1]), (0, 0, 255), 3)
+                # Draw the goalie line
+                cv2.line(frame, (self.goalie_x_pixel_position, self.pixel_top_right_corner[1]),
+                         (self.goalie_x_pixel_position, self.pixel_bottom_right_corner[1]), (0, 0, 255), 3)
 
             # Initialize the best contour to none, then search for the best one
             if len(cnts) == 1:
@@ -195,31 +207,47 @@ class CameraManager:
                 self.queue_from_camera.put((CameraEvent.CURRENT_BALL_POS, {"pixel": (ball_center[0], ball_center[1]),
                                                                            "mm": self.convert_pixels_to_mm_playing_field(
                                                                                ball_center[0], ball_center[1])}))
-                # Draw the y ball position on the goalie line.
-                cv2.circle(frame, (self.goalie_x_pixel_position, ball_center[1]), 10, (255, 0, 0), -1)
-                cv2.putText(frame, "Actual", (self.goalie_x_pixel_position, ball_center[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+                if mode == 2:
+                    # Draw the y ball position on the goalie line.
+                    cv2.circle(frame, (self.goalie_x_pixel_position, ball_center[1]), 10, (255, 0, 0), -1)
+                    cv2.putText(frame, "Actual", (self.goalie_x_pixel_position, ball_center[1]), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.5, (255, 0, 0), 1)
             else:
                 self.ball_prediction.add_new_empty()
+            opencv_time = round(time.time() - start_time, 4)
 
+            # Predict the ball positions
+            start_time = time.time()
             pred = self.ball_prediction.get_predicted()
+            time_for_prediction = 0
 
             if pred is not None:
-                self.queue_from_camera.put((CameraEvent.PREDICTED_BALL_POS, {"pixel": (self.goalie_x_pixel_position, pred),
-                                                                             "mm": self.convert_pixels_to_mm_playing_field(
-                                                                                 self.goalie_x_pixel_position, pred)}))
-                cv2.circle(frame, (self.goalie_x_pixel_position, pred), 10, (0, 255, 0), -1)
-                cv2.putText(frame, "Prediction", (self.goalie_x_pixel_position, pred), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                            (255, 0, 0), 1)
+                self.queue_from_camera.put(
+                    (CameraEvent.PREDICTED_BALL_POS, {"pixel": (self.goalie_x_pixel_position, pred),
+                                                      "mm": self.convert_pixels_to_mm_playing_field(
+                                                          self.goalie_x_pixel_position, pred)}))
+                time_for_prediction = round(time.time() - start_time, 4)
+                if mode == 2:
+                    cv2.circle(frame, (self.goalie_x_pixel_position, pred), 10, (0, 255, 0), -1)
+                    cv2.putText(frame, "Prediction", (self.goalie_x_pixel_position, pred), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                (255, 0, 0), 1)
 
-            path = self.ball_prediction.get_path()
-            if path:
-                old_path = path
-            self.draw_predicted_path(frame, old_path)
+            #if time.time() - whole_loop_run_time > 0.021:
+                #print("Time for whole loop:", round(time.time() - whole_loop_run_time, 4))
+                #print("Time for color frame", read_color_frame_time)
+                #print("Time for opencv", opencv_time)
+                #print("Time for prediction", time_for_prediction)
 
-            # Display the current frame
-            self.queue_from_camera.put((CameraEvent.CURRENT_FRAME, frame))
-            # cv2.imshow("Frame", frame)
-            # key = cv2.waitKey(1) & 0xFF
+            if mode == 2:
+                path = self.ball_prediction.get_path()
+                if path:
+                  old_path = path
+                self.draw_predicted_path(frame, old_path)
+
+                 # Display the current frame
+                # self.queue_from_camera.put((CameraEvent.CURRENT_FRAME, frame))
+                cv2.imshow("Frame", frame)
+                key = cv2.waitKey(1) & 0xFF
 
     def __start_pipe(self):
         """
@@ -269,9 +297,11 @@ class CameraManager:
     def convert_pixels_to_mm_playing_field(self, x_pixel, y_pixel):
         # TODO motors should not take these in the wrong order
         x_mm = round((self.camera_measurements.camera_resolution_x - x_pixel - (
-                    self.camera_measurements.camera_resolution_x - self.pixel_bottom_right_corner[0]))/self.pixel_to_mm_x, 2)
+                self.camera_measurements.camera_resolution_x - self.pixel_bottom_right_corner[0])) / self.pixel_to_mm_x,
+                     2)
         y_mm = round((self.camera_measurements.camera_resolution_y - y_pixel - (
-                    self.camera_measurements.camera_resolution_y - self.pixel_bottom_right_corner[1]))/self.pixel_to_mm_y, 2)
+                self.camera_measurements.camera_resolution_y - self.pixel_bottom_right_corner[1])) / self.pixel_to_mm_y,
+                     2)
         return y_mm, x_mm
 
     def __detect_goalie(self):
@@ -343,8 +373,8 @@ class CameraManager:
             rect = cv2.minAreaRect(c)
             box = cv2.boxPoints(rect)
             box = box.astype(int)
-            #with open(CORNERS_FILE, "w") as f:
-                #json.dump(box.tolist(), f)
+            # with open(CORNERS_FILE, "w") as f:
+            # json.dump(box.tolist(), f)
 
         cv2.drawContours(frame, [box], 0, (0, 255, 0), 1)
         # Blue
@@ -381,10 +411,10 @@ class CameraManager:
             self.pixel_bottom_right_corner = bottom_vertices[1]
 
         # Draw the contours on the original image
-        #cv2.drawContours(frame, [box], -1, (0, 255, 0), 3)
-        #cv2.imshow('Frame', frame)
-        #cv2.waitKey(0)
-        #cv2.destroyAllWindows()
+        # cv2.drawContours(frame, [box], -1, (0, 255, 0), 3)
+        # cv2.imshow('Frame', frame)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
 
     def __calculate_pixel_to_mm(self):
         self.pixel_to_mm_x = (self.pixel_bottom_right_corner[0] - self.pixel_bottom_left_corner[

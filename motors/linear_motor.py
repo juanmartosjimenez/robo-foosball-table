@@ -21,7 +21,7 @@ class LinearMotor:
 
     def event_loop(self):
         while True:
-            time.sleep(0.01)
+            time.sleep(0.001)
             last_event = None
             # Only interested in the last event.
             if self.stop_flag.is_set():
@@ -88,7 +88,7 @@ class LinearMotor:
         if pos < 0: pos = 100
         if pos > self.measurements.m1_encoder_limit: pos = self.measurements.m1_encoder_limit - 100
         with self.lock:
-            self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 16000, 4000, 16000, pos, 1)
+            self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 24000, 4000, 24000, pos, 1)
 
     def home(self):
         """

@@ -1,3 +1,4 @@
+import time
 import tkinter as tk
 from multiprocessing import Queue
 from queue import Empty
@@ -17,11 +18,12 @@ tk.Tk.report_callback_exception = report_callback_exception
 
 
 class Frontend(tk.Tk):
-    def __init__(self, queue_to_frontend: Queue, queue_from_frontend: Queue):
+    def __init__(self, queue_to_frontend: Queue, queue_from_frontend: Queue, camera_queue_to_frontend: Queue):
         super().__init__()
         self.title("Robot GUI")
         self.queue_to_frontend = queue_to_frontend
         self.queue_from_frontend = queue_from_frontend
+        self.camera_queue_to_frontend = camera_queue_to_frontend
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
         # set dimensions
@@ -69,6 +71,8 @@ class Frontend(tk.Tk):
         # video feed
         self.video_feed = tk.Label(self, bg="white", height=600)
         self.video_feed.grid(row=8, column=0, columnspan=2, sticky="NSWE")
+        self.frame_count = 0
+        self.start_time = time.time()
 
         self.event_loop()
 
@@ -131,4 +135,19 @@ class Frontend(tk.Tk):
                 self.update_frame(event[1])
         except Empty:
             pass
+
+        last_frame = None
+        while True:
+            try:
+                event = self.camera_queue_to_frontend.get_nowait()
+                last_frame = event[1]
+            except Empty:
+                break
+        if last_frame is not None:
+            self.frame_count += 1
+            if time.time() - self.start_time > 1:
+                self.frame_count = 0
+                self.start_time = time.time()
+            self.update_frame(last_frame)
+
         self.after(1, self.event_loop)
