@@ -224,7 +224,7 @@ class BallPrediction:
         elif len(self.buffer) == 1:
             if self.buffer[0] is None:
                 return None
-            return self.buffer[0][1]
+            return (self.buffer[0][1],)
         else:
             return None
 

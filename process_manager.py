@@ -21,6 +21,7 @@ class ProcessManager:
         self.queue_to_ball_prediction = mp.Queue()
         self.queue_from_ball_prediction = mp.Queue()
         self.stop_flag = mp.Event()
+        self.stop_flag.set()
         self.tkinter_frontend_process = Process(target=start_tkinter_process,
                                                 args=(self.queue_to_tkinter_frontend, self.queue_from_tkinter_frontend))
         self.camera_process = Process(target=start_camera_process,
@@ -34,8 +35,6 @@ class ProcessManager:
         self.active_threads.append(self.camera_process)
         self.active_threads.append(self.motor_process)
         self.active_threads.append(self.flask_process)
-        self.stop_flag = mp.Event()
-        self.stop_flag.set()
 
     def run(self):
         self.tkinter_frontend_process.start()
@@ -148,6 +147,7 @@ class ProcessManager:
             elif event == FrontendEvent.POWER_ON:
                 self._power_on()
             elif event == FrontendEvent.STOP:
+                print("Read stop from tkinter frontend")
                 self.stop_flag.set()
             elif event == FrontendEvent.ERROR:
                 self.stop_flag.set()
