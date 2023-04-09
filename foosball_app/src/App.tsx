@@ -38,29 +38,37 @@ const App = () => {
   };
 
   const handleStartPress = async() => {
-    setStartPressed(true);
-    try {
-      const response = await axios.post('http://127.0.0.1:5000/api/start', {
-        hardware_type: 'printer',
-        action: 'start',
-      });
-      setStatusMessage('Hardware started successfully');
-    } catch (error) {
-      setStatusMessage('Failed to start hardware');
+    if(powerOn) {
+      setStartPressed(true);
+    
+      try {
+        const response = await axios.post('http://127.0.0.1:5000/api/start', {
+          hardware_type: 'printer',
+          action: 'start',
+        });
+        setStatusMessage('Hardware started successfully');
+      } catch (error) {
+        setStatusMessage('Failed to start hardware');
+      }
     }
   };
     // Create function for starting the game 
 
   const handleResetPress = async() => {
-    setResetPressed(true);
-    try {
-      const response = await axios.post('http://127.0.0.1:5000/api/reset', {
-        hardware_type: 'printer',
-        action: 'start',
-      });
-      setStatusMessage('Hardware started successfully');
-    } catch (error) {
-      setStatusMessage('Failed to start hardware');
+    if(powerOn) {
+      setResetPressed(true);
+      setStartPressed(false);
+      setPowerOn(false);
+    
+      try {
+        const response = await axios.post('http://127.0.0.1:5000/api/reset', {
+          hardware_type: 'printer',
+          action: 'start',
+        });
+        setStatusMessage('Hardware started successfully');
+      } catch (error) {
+        setStatusMessage('Failed to start hardware');
+      }
     }
   };
 
