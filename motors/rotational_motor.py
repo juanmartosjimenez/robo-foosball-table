@@ -63,7 +63,7 @@ class RotationalMotor:
         Strike the ball with the m2 motor.
         :return:
         """
-        self.move_to_pos(self.measurements.enc_m2_360_rotation + 60, accell=32000, speed=4000, deccell=32000)
+        self.move_to_pos(self.measurements.enc_m2_360_rotation + 60, accell=48000, speed=6000, deccell=32000)
         time.sleep(0.1)
         self.move_to_default_pos()
         time.sleep(0.1)

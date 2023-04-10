@@ -14,6 +14,7 @@ from camera.aruco import detect_markers, get_pixel_to_mm, draw_markers, pose_est
 import pyrealsense2 as rs
 
 from camera.camera_measurements import CameraMeasurements
+from camera.video_writer import VideoWriter
 from other.events import CameraEvent
 from camera.ball_prediction import BallPrediction
 
@@ -58,6 +59,7 @@ class CameraManager:
         self.ball_prediction = BallPrediction(playing_fields_x_pixels, playing_fields_y_pixels,
                                               self.camera_measurements.camera_fps, self.queue_from_camera,
                                               self.goalie_x_pixel_position, self.pixel_top_left_corner, 15)
+        self.video_writer = VideoWriter()
 
     def draw_aruco_markers(self):
         # Draw the aruco markers
@@ -78,7 +80,7 @@ class CameraManager:
                 event = data[0]
                 if event == CameraEvent.START_BALL_TRACKING:
                     self.queue_from_camera.put(("message", "Ball tracking started"))
-                    self.start_ball_tracking()
+                    self.start_ball_tracking(mode="Display")
                 elif event == CameraEvent.TEST_STRIKE:
                     start_time = time.time()
                     print("LATENCY TEST START", time.time())
@@ -136,12 +138,13 @@ class CameraManager:
         # Calculate ratio of pixels to mm
         while True:
             if self.stop_flag.is_set():
+                self.video_writer.close()
                 return
             # Get the RealSense frame to be processed by OpenCV
             whole_loop_run_time = time.time()
             start_time = time.time()
             frame = self.read_color_frame()
-            read_color_frame_time = round(time.time() - start_time, 4)
+            self.video_writer.add_frame(frame)
             fps += 1
             start_time = time.time()
             if time.time() - fps_time > 1:
@@ -190,7 +193,9 @@ class CameraManager:
 
                 # Draw the goalie line
                 cv2.line(frame, (self.goalie_x_pixel_position, self.pixel_top_right_corner[1]),
-                         (self.goalie_x_pixel_position, self.pixel_bottom_right_corner[1]), (0, 0, 255), 3)
+                         (self.goalie_x_pixel_position, self.pixel_bottom_right_corner[1]), (0, 0, 255), 2)
+
+                cv2.line(frame, (self.goalie_x_pixel_position - self.camera_measurements.strike_zone_pixels, self.pixel_top_right_corner[1]),(self.goalie_x_pixel_position - self.camera_measurements.strike_zone_pixels, self.pixel_bottom_right_corner[1]), (0, 0, 255), 2)
 
             # Initialize the best contour to none, then search for the best one
             if len(cnts) == 1:
@@ -218,7 +223,7 @@ class CameraManager:
 
             # Predict the ball positions
             start_time = time.time()
-            pred = self.ball_prediction.get_predicted()
+            pred = self.ball_prediction.get_predicted(fps)
             time_for_prediction = 0
 
             if pred is not None:
@@ -332,6 +337,9 @@ class CameraManager:
             self.goalie_x_pixel_position = cX
 
     def __detect_field_corners(self):
+        def on_mouse(event, x, y, flags, param):
+            if event == cv2.EVENT_MOUSEMOVE:
+                print("Pixel coordinates: ({}, {})".format(x, y))
         frame = self.read_color_frame()
         blurred = cv2.GaussianBlur(frame, (5, 5), 0)
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
@@ -371,8 +379,8 @@ class CameraManager:
             rect = cv2.minAreaRect(c)
             box = cv2.boxPoints(rect)
             box = box.astype(int)
-            # with open(CORNERS_FILE, "w") as f:
-            # json.dump(box.tolist(), f)
+            #with open(CORNERS_FILE, "w") as f:
+                #json.dump(box.tolist(), f)
 
         cv2.drawContours(frame, [box], 0, (0, 255, 0), 1)
         # Blue
@@ -410,9 +418,11 @@ class CameraManager:
 
         # Draw the contours on the original image
         # cv2.drawContours(frame, [box], -1, (0, 255, 0), 3)
-        # cv2.imshow('Frame', frame)
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
+        #cv2.namedWindow("Image")
+        #cv2.setMouseCallback("Image", on_mouse)
+        #cv2.imshow('Image', frame)
+        #cv2.waitKey(0)
+        #cv2.destroyAllWindows()
 
     def __calculate_pixel_to_mm(self):
         self.pixel_to_mm_x = (self.pixel_bottom_right_corner[0] - self.pixel_bottom_left_corner[

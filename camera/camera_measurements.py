@@ -16,6 +16,7 @@ measurements = {"MM_ARUCO_PADDING": 10,
                 "MM_PLAYING_FIELD_Y": 631,
                 "CAMERA_RESOLUTION_Y": 540,
                 "CAMERA_RESOLUTION_X": 960,
+                "STRIKE_ZONE_PIXELS": 50,
                 "CAMERA_FPS": 60,
                 "Y_PERSPECTIVE_COMPENSATION": 20}
 
@@ -36,5 +37,6 @@ class CameraMeasurements(pydantic.BaseModel):
     camera_resolution_y: int = measurements["CAMERA_RESOLUTION_Y"]
     camera_fps: int = measurements["CAMERA_FPS"]
     y_perspective_compensation: int = measurements["Y_PERSPECTIVE_COMPENSATION"]
+    strike_zone_pixels: int = measurements["STRIKE_ZONE_PIXELS"]
 
 

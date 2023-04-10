@@ -14,6 +14,8 @@ BALL_POSITION_FILE = os.path.join(os.path.dirname(__file__), "data/ball_position
 class BallPrediction:
     def __init__(self, x_pixels, y_pixels, rate, queue_from_camera: Queue, target_x_pixel, playing_field_top_left,
                  ball_radius):
+        # Camera measurements
+        self.camera_measurements = CameraMeasurements()
         # Total number of x pixels in the playing field.
         self.x_pixels = x_pixels
         # Total number of y pixels in the playing field.
@@ -24,7 +26,7 @@ class BallPrediction:
         self.damping = 0.85
         # Threshold speed. Speed at which prediction of ball is no longer taking into account but rather the current
         # ball position.
-        self.threshold = 30
+        self.threshold = 70
         # Restitution factor. Rate at which the ball bounces off the walls.
         self.restitution = 0.75        # Buffer to store current ball pixels.
         self.buffer = []
@@ -33,9 +35,7 @@ class BallPrediction:
         # Queue used to send out
         self.queue_from_camera = queue_from_camera
         # X range threshold. Number of pixels apart from goalie for predicted path to be taken into account.
-        self.x_range_threshold = 50
-        # Camera measurements
-        self.camera_measurements = CameraMeasurements()
+        self.x_range_threshold = self.camera_measurements.strike_zone_pixels
         # Playing field top left pixel.
         self.playing_field_top_left = playing_field_top_left
 
@@ -102,7 +102,6 @@ class BallPrediction:
                 return None
 
             # If the ball is behind the target position then move to position and strike.
-            # TODO make the ball strike.
             if curr_pos[0] > self.target_x_pixel:
                 return (curr_pos[1],)
 
@@ -113,6 +112,7 @@ class BallPrediction:
             # If the ball is within the x range threshold, use the current ball position instead of predicting
             # trajectory.
             if self.target_x_pixel - curr_pos[0] < self.x_range_threshold:
+                self.queue_from_camera.put_nowait((CameraEvent.QUICK_STRIKE, None))
                 return (curr_pos[1],)
 
             # If change in position is less than the ball radius then ball is stationary and no change in position is
@@ -214,10 +214,11 @@ class BallPrediction:
                 y_pixel = y_prime
 
             # Elapsed time until ball was moving below the threshold or until it hit the target position.
-            if x_prime == self.target_x_pixel:
+            if x_prime == self.target_x_pixel and total_elapsed_time < 0.8:
                 #if 0.15 < total_elapsed_time < 0.30:
                 #    self.queue_from_camera.put_nowait((CameraEvent.STRIKE, None))
-                if 0 < total_elapsed_time < 0.19:
+                if 0 < total_elapsed_time < 0.15 and abs(curr_pos[0] - self.target_x_pixel) < 400:
+
                     self.queue_from_camera.put_nowait((CameraEvent.QUICK_STRIKE, None))
                 return y_prime, predicted_trajectory
             else:
@@ -231,11 +232,35 @@ class BallPrediction:
         else:
             return None
 
-    def get_predicted(self):
+    def get_predicted(self, rate):
+        if rate > 40:
+            self.rate = rate
         out = self._predict()
         out_val = None
         if out is None:
-            self.predicted_buffer.insert(0, None)
+            # Determine whether to send the current ball position.
+            ii = 1
+            curr_ball_pos = self.buffer[0]
+            if curr_ball_pos is None:
+                return None
+            buffer_len = len(self.predicted_buffer)
+            tmp_out_val = None
+            # Get last not None value sent to the motors.
+            while True:
+                if ii < 60 and buffer_len > ii:
+                    if self.predicted_buffer[ii] is not None:
+                        tmp_out_val = self.predicted_buffer[ii]
+                        break
+                else:
+                    break
+                ii += 1
+
+            if tmp_out_val is None or abs(tmp_out_val - curr_ball_pos[1]) > self.ball_radius*2:
+                out_val = round(curr_ball_pos[1])
+                self.predicted_buffer.insert(0, out_val)
+            else:
+                self.predicted_buffer.insert(0, None)
+
         else:
             out_val = round(out[0])
             self.predicted_buffer.insert(0, out[0])

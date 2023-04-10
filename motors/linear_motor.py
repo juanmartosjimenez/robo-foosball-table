@@ -89,7 +89,7 @@ class LinearMotor:
         if pos < 0: pos = 100
         if pos > self.measurements.m1_encoder_limit: pos = self.measurements.m1_encoder_limit - 100
         with self.lock:
-            self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 24000, 4000, 24000, pos, 1)
+            self.roboclaw.SpeedAccelDeccelPositionM1(self.address, 32000, 6000, 32000, pos, 1)
 
     def home(self):
         """
