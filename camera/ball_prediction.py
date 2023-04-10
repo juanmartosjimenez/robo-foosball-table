@@ -69,7 +69,7 @@ class BallPrediction:
         if x_pixel is None or y_pixel is None:
             return
         x_pixel, y_pixel = self.__convert_to_playing_field_pixel(x_pixel, y_pixel)
-        with open(BALL_POSITION_FILE, "a+") as f:
+        with open(BALL_POSITION_FILE, "w") as f:
             f.write(f"{str(x_pixel)},{str(y_pixel)}\n")
 
     def add_new_empty(self):
@@ -214,7 +214,7 @@ class BallPrediction:
                 y_pixel = y_prime
 
             # Elapsed time until ball was moving below the threshold or until it hit the target position.
-            if x_prime == self.target_x_pixel and total_elapsed_time < 0.8:
+            if x_prime == self.target_x_pixel and total_elapsed_time < 0.6:
                 #if 0.15 < total_elapsed_time < 0.30:
                 #    self.queue_from_camera.put_nowait((CameraEvent.STRIKE, None))
                 if 0 < total_elapsed_time < 0.15 and abs(curr_pos[0] - self.target_x_pixel) < 400:

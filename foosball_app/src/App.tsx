@@ -84,19 +84,20 @@ const App = () => {
   useEffect(() => {
     const intervalId = setInterval(() => {
       axios.get('http://127.0.0.1:5000/api/coordinates')
-      .then(response => setCircleX(response.data.x))
-      .catch(error => console.error(error));
+        .then(response => setCoordinates(response.data))
+        .catch(error => console.error(error));
     setCircleX(coordinates.x);
     setCircleY(coordinates.y);
     console.log(coordinates);
     console.log(circleX);
     console.log(circleY);
-    }, 1000);
+    }, 200);
 
     return () => {
       clearInterval(intervalId);
     }
-  }, []);
+  }, [coordinates]);
+
   
 
   return (
@@ -149,7 +150,7 @@ const App = () => {
           </Card.Body>
         </Card>
         <div>
-          <WhiteCircle imageUrl="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQxMLxE4TIhrIVc-5M3Jiv7Z6R2ho8VtlZ_c0U4Q8BJ&s" circleX={circleX} circleY={circleY}/>
+          <WhiteCircle imageUrl="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQxMLxE4TIhrIVc-5M3Jiv7Z6R2ho8VtlZ_c0U4Q8BJ&s" circleX={coordinates.x} circleY={coordinates.y}/>
         </div>
          
         <Card style = {{color: 'gray', marginTop: '5px'}}>
