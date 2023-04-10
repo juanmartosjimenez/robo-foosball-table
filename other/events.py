@@ -31,6 +31,7 @@ class MotorEvent(Enum):
     ERROR = 8
     TEST_STRIKE = 9
     READ_BUFFER = 10
+    QUICK_STRIKE = 11
 
 
 class CameraEvent(Enum):
@@ -43,6 +44,7 @@ class CameraEvent(Enum):
     STRIKE = 6
     TEST_STRIKE = 7
     CURRENT_FRAME = 8
+    QUICK_STRIKE = 9
 
 
 class LinearMotorEvent(Enum):
@@ -59,6 +61,7 @@ class RotationalMotorEvent(Enum):
     HOME = 3
     MOVE_TO_DEFAULT = 5
     TEST_STRIKE = 6
+    QUICK_STRIKE = 7
 
 class FlaskAppEvent(Enum):
     START = 1

@@ -232,11 +232,9 @@ class CameraManager:
                     cv2.putText(frame, "Prediction", (self.goalie_x_pixel_position, pred), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                                 (255, 0, 0), 1)
 
-            #if time.time() - whole_loop_run_time > 0.021:
-                #print("Time for whole loop:", round(time.time() - whole_loop_run_time, 4))
-                #print("Time for color frame", read_color_frame_time)
-                #print("Time for opencv", opencv_time)
-                #print("Time for prediction", time_for_prediction)
+            if time.time() - whole_loop_run_time > 0.021:
+                # print("Time for opencv", opencv_time)
+                pass
 
             if mode == 2:
                 path = self.ball_prediction.get_path()

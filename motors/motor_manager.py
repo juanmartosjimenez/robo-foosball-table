@@ -2,7 +2,6 @@ import multiprocessing
 import queue
 import threading
 import time
-import sys
 
 from motors.linear_motor import LinearMotor
 from motors.roboclaw import Roboclaw
@@ -74,6 +73,8 @@ class MotorManager:
                     self.queue_to_linear_motor.put_nowait((LinearMotorEvent.MOVE_TO_POS, data[1]))
                 elif event == MotorEvent.STRIKE:
                     self.queue_to_rotational_motor.put_nowait((RotationalMotorEvent.STRIKE, None))
+                elif event == MotorEvent.QUICK_STRIKE:
+                    self.queue_to_rotational_motor.put_nowait((RotationalMotorEvent.QUICK_STRIKE, None))
                 elif event == MotorEvent.ENCODER_VALS:
                     encoder_val = self.read_encoders()
                     self.queue_from_motors.put_nowait((MotorEvent.ENCODER_VALS, {"encoders": encoder_val,

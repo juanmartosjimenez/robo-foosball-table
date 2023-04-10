@@ -18,6 +18,7 @@ class RotationalMotor:
         self.stop_flag = stop_flag
         self.lock = lock
         self.last_strike = None
+        self.homed = False
 
     def event_loop(self):
         while True:
@@ -39,9 +40,14 @@ class RotationalMotor:
             if last_event is not None:
                 event = last_event[0]
                 if event == RotationalMotorEvent.STRIKE:
+                    print("Strike")
                     # Only strike if the last strike was more than 1 second ago.
                     if self.last_strike is None or time.time() - self.last_strike > 1:
                         self.strike()
+                        self.last_strike = time.time()
+                elif event == RotationalMotorEvent.QUICK_STRIKE:
+                    if self.last_strike is None or time.time() - self.last_strike > 1:
+                        self.quick_strike()
                         self.last_strike = time.time()
                 elif event == RotationalMotorEvent.HOME:
                     self.home()
@@ -51,6 +57,17 @@ class RotationalMotor:
                     self.test_strike()
                 else:
                     raise Exception("Unknown event in rotational motor", last_event)
+
+    def quick_strike(self):
+        """
+        Strike the ball with the m2 motor.
+        :return:
+        """
+        self.move_to_pos(self.measurements.enc_m2_360_rotation + 60, accell=32000, speed=4000, deccell=32000)
+        time.sleep(0.1)
+        self.move_to_default_pos()
+        time.sleep(0.1)
+
 
     def strike(self):
         """
@@ -74,10 +91,13 @@ class RotationalMotor:
             # Don't wait for motors to reach exactly the strike start position because it will be too slow.
             with self.lock:
                 enc_m2 = self.roboclaw.ReadEncM2(self.address)[1]
-            if nearest_0 + self.measurements.enc_m2_strike - 10 <= enc_m2 <= nearest_0 + self.measurements.enc_m2_strike:
+            if enc_m2 <= nearest_0 + self.measurements.enc_m2_strike:
                 break
+        self.stop()
         self.move_forward(120)
-        time.sleep(0.09)
+        time.sleep(0.08)
+        self.move_forward(60)
+        time.sleep(0.02)
         # Moves the player back to start position.
         self.move_to_default_pos()
 
@@ -115,7 +135,7 @@ class RotationalMotor:
         """
         self.move_to_pos(self.measurements.enc_m2_default)
 
-    def move_to_pos(self, pos, accell=16000, speed=2000, deccell=16000):
+    def move_to_pos(self, pos, accell=14000, speed=2000, deccell=14000):
         """
         Moves motor 2 to the given encoder position.
         :param pos:
@@ -131,6 +151,7 @@ class RotationalMotor:
         """
         with self.lock:
             self.roboclaw.SetEncM2(self.address, 145)
+        self.homed = True
 
     def stop(self):
         """

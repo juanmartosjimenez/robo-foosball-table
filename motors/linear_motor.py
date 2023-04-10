@@ -18,6 +18,7 @@ class LinearMotor:
         self.roboclaw: Roboclaw = roboclaw
         self.stop_flag = stop_flag
         self.lock = lock
+        self.homed = False
 
     def event_loop(self):
         while True:
@@ -105,6 +106,7 @@ class LinearMotor:
             if speed == 0:
                 self.stop()
                 break
+        self.homed = True
 
     def stop(self):
         """

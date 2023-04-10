@@ -24,17 +24,16 @@ class BallPrediction:
         self.damping = 0.85
         # Threshold speed. Speed at which prediction of ball is no longer taking into account but rather the current
         # ball position.
-        self.threshold = 100
+        self.threshold = 30
         # Restitution factor. Rate at which the ball bounces off the walls.
-        self.restitution = 0.5
-        # Buffer to store current ball pixels.
+        self.restitution = 0.75        # Buffer to store current ball pixels.
         self.buffer = []
         # Predicted ball pixels.
         self.predicted_buffer = []
         # Queue used to send out
         self.queue_from_camera = queue_from_camera
         # X range threshold. Number of pixels apart from goalie for predicted path to be taken into account.
-        self.x_range_threshold = 100
+        self.x_range_threshold = 50
         # Camera measurements
         self.camera_measurements = CameraMeasurements()
         # Playing field top left pixel.
@@ -119,7 +118,7 @@ class BallPrediction:
             # If change in position is less than the ball radius then ball is stationary and no change in position is
             # needed.
             if abs(curr_pos[0] - prev_pos[0]) < 2:
-                print("Ball is stationary")
+                # print("Ball is stationary")
                 return None
 
             # print("Curr pos: ", curr_pos)
@@ -184,7 +183,9 @@ class BallPrediction:
                             elapsed_time += time_step_prime
                             # There is surely a more physics way of doing this but this works.
                             # Update the Y speed of the ball after bouncing off the wall.
-                            y_speed = -y_speed * self.restitution
+                            # TODO test this. Multiplying by 1.3 because the ball bounces off the wall in a non linear
+                            # way.
+                            y_speed = -y_speed * self.restitution * 0.5
                             # Update the X speed of the ball after bouncing off the wall.
                             x_speed = x_speed * self.restitution
                             # print("BALL HIT WALL AND DOES NOT HIT TARGET", x_prime, y_prime, elapsed_time)
@@ -214,10 +215,11 @@ class BallPrediction:
 
             # Elapsed time until ball was moving below the threshold or until it hit the target position.
             if x_prime == self.target_x_pixel:
-                if total_elapsed_time < 0.5:
-                    pass
-                    # self.queue_from_camera.put_nowait((CameraEvent.STRIKE, None))
-                return (y_prime, predicted_trajectory)
+                #if 0.15 < total_elapsed_time < 0.30:
+                #    self.queue_from_camera.put_nowait((CameraEvent.STRIKE, None))
+                if 0 < total_elapsed_time < 0.19:
+                    self.queue_from_camera.put_nowait((CameraEvent.QUICK_STRIKE, None))
+                return y_prime, predicted_trajectory
             else:
                 return None
 

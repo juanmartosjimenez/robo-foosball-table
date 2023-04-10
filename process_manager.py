@@ -49,7 +49,6 @@ class ProcessManager:
             iterations += 1
             if time.time() - start_time > 1:
                 start_time = time.time()
-                print("Events per second:", iterations)
                 iterations = 0
 
             self._read_camera()
@@ -60,8 +59,6 @@ class ProcessManager:
     def _clear_queues(self):
         while not self.queue_from_camera.empty():
             self.queue_from_camera.get_nowait()
-        while not self.queue_from_motors.empty():
-            self.queue_from_motors.get_nowait()
         while not self.queue_to_camera.empty():
             self.queue_to_camera.get_nowait()
         while not self.queue_to_motors.empty():
@@ -72,6 +69,8 @@ class ProcessManager:
             self.queue_from_tkinter_frontend.get_nowait()
         while not self.queue_to_flask.empty():
             self.queue_to_flask.get_nowait()
+        while not self.queue_from_motors.empty():
+            self.queue_from_motors.get_nowait()
         while not self.queue_from_flask.empty():
             self.queue_from_flask.get_nowait()
 
@@ -112,6 +111,8 @@ class ProcessManager:
                 self.queue_to_tkinter_frontend.put_nowait((FrontendEvent.FPS, data))
             elif event == CameraEvent.STRIKE:
                 self.queue_to_motors.put_nowait((MotorEvent.STRIKE, None))
+            elif event == CameraEvent.QUICK_STRIKE:
+                self.queue_to_motors.put_nowait((MotorEvent.QUICK_STRIKE, None))
             elif event == CameraEvent.TEST_STRIKE:
                 self.queue_to_motors.put_nowait((MotorEvent.TEST_STRIKE, None))
             elif event == CameraEvent.CURRENT_FRAME:
