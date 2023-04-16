@@ -14,6 +14,7 @@ from camera.aruco import detect_markers, get_pixel_to_mm, draw_markers, pose_est
 import pyrealsense2 as rs
 
 from camera.camera_measurements import CameraMeasurements
+from camera.record_game import RecordGame
 from camera.video_writer import VideoWriter
 from other.events import CameraEvent
 from camera.ball_prediction import BallPrediction
@@ -59,6 +60,7 @@ class CameraManager:
         self.ball_prediction = BallPrediction(playing_fields_x_pixels, playing_fields_y_pixels,
                                               self.camera_measurements.camera_fps, self.queue_from_camera,
                                               self.goalie_x_pixel_position, self.pixel_top_left_corner, 15)
+        self.record_game_writer = RecordGame(playing_fields_x_pixels, playing_fields_y_pixels, self.camera_measurements.camera_fps, self.pixel_top_left_corner)
         self.video_writer = VideoWriter()
 
     def draw_aruco_markers(self):
@@ -80,13 +82,17 @@ class CameraManager:
                 event = data[0]
                 if event == CameraEvent.START_BALL_TRACKING:
                     self.queue_from_camera.put(("message", "Ball tracking started"))
-                    self.start_ball_tracking(mode="Display")
+                    self.start_ball_tracking()
                 elif event == CameraEvent.TEST_STRIKE:
                     start_time = time.time()
                     print("LATENCY TEST START", time.time())
                     self.queue_from_camera.put((CameraEvent.TEST_STRIKE, "Testing strike"))
                     print("Camera manager: Testing strike end time", time.time())
                     print("Camera manager: Testing strike time", time.time() - start_time)
+                elif event == CameraEvent.RECORD_GAME:
+                    self.queue_from_camera.put(("message", "Recording ball movements for game."))
+                    self.record_game()
+
                 else:
                     raise ValueError(f"Unknown camera_manager event {str(data)}")
             except queue.Empty:
@@ -128,9 +134,9 @@ class CameraManager:
         mask2_lower = (160, 142, 134)
         mask2_upper = (255, 255, 255)
 
-
         # Initialize variables and loop to continuously get and process video
-        fps = 0
+        fps_count = 0
+        fps = 60
         fps_time = time.time()
         # Detect aruco markers
         # self.corners, self.ids, self.rejected = (None, None, None)
@@ -138,18 +144,17 @@ class CameraManager:
         # Calculate ratio of pixels to mm
         while True:
             if self.stop_flag.is_set():
-                self.video_writer.close()
                 return
             # Get the RealSense frame to be processed by OpenCV
             whole_loop_run_time = time.time()
             start_time = time.time()
             frame = self.read_color_frame()
-            self.video_writer.add_frame(frame)
-            fps += 1
+            fps_count += 1
             start_time = time.time()
             if time.time() - fps_time > 1:
-                self.queue_from_camera.put((CameraEvent.FPS, fps))
-                fps = 0
+                self.queue_from_camera.put((CameraEvent.FPS, fps_count))
+                fps = fps_count
+                fps_count = 0
                 fps_time = time.time()
 
             # Get the region of interest, and only look for contours there in order to minimize computing necessity
@@ -181,12 +186,15 @@ class CameraManager:
 
             if mode == 2:
                 cv2.line(frame, self.pixel_bottom_left_corner, self.pixel_top_left_corner, (0, 0, 255), 1)
-                cv2.putText(frame, "Bottom Left", self.pixel_bottom_left_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255),
+                cv2.putText(frame, "Bottom Left", self.pixel_bottom_left_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                            (0, 0, 255),
                             1)
                 cv2.line(frame, self.pixel_top_left_corner, self.pixel_top_right_corner, (0, 0, 255), 1)
-                cv2.putText(frame, "Top Left", self.pixel_top_left_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                cv2.putText(frame, "Top Left", self.pixel_top_left_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255),
+                            1)
                 cv2.line(frame, self.pixel_top_right_corner, self.pixel_bottom_right_corner, (0, 0, 255), 1)
-                cv2.putText(frame, "Top Right", self.pixel_top_right_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                cv2.putText(frame, "Top Right", self.pixel_top_right_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255),
+                            1)
                 cv2.line(frame, self.pixel_bottom_right_corner, self.pixel_bottom_left_corner, (0, 0, 255), 1)
                 cv2.putText(frame, "Bottom Right", self.pixel_bottom_right_corner, cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                             (0, 0, 255), 1)
@@ -195,7 +203,10 @@ class CameraManager:
                 cv2.line(frame, (self.goalie_x_pixel_position, self.pixel_top_right_corner[1]),
                          (self.goalie_x_pixel_position, self.pixel_bottom_right_corner[1]), (0, 0, 255), 2)
 
-                cv2.line(frame, (self.goalie_x_pixel_position - self.camera_measurements.strike_zone_pixels, self.pixel_top_right_corner[1]),(self.goalie_x_pixel_position - self.camera_measurements.strike_zone_pixels, self.pixel_bottom_right_corner[1]), (0, 0, 255), 2)
+                cv2.line(frame, (self.goalie_x_pixel_position - self.camera_measurements.strike_zone_pixels,
+                                 self.pixel_top_right_corner[1]), (
+                         self.goalie_x_pixel_position - self.camera_measurements.strike_zone_pixels,
+                         self.pixel_bottom_right_corner[1]), (0, 0, 255), 2)
 
             # Initialize the best contour to none, then search for the best one
             if len(cnts) == 1:
@@ -215,7 +226,8 @@ class CameraManager:
                 if mode == 2:
                     # Draw the y ball position on the goalie line.
                     cv2.circle(frame, (self.goalie_x_pixel_position, ball_center[1]), 10, (255, 0, 0), -1)
-                    cv2.putText(frame, "Actual", (self.goalie_x_pixel_position, ball_center[1]), cv2.FONT_HERSHEY_SIMPLEX,
+                    cv2.putText(frame, "Actual", (self.goalie_x_pixel_position, ball_center[1]),
+                                cv2.FONT_HERSHEY_SIMPLEX,
                                 0.5, (255, 0, 0), 1)
             else:
                 self.ball_prediction.add_new_empty()
@@ -223,7 +235,7 @@ class CameraManager:
 
             # Predict the ball positions
             start_time = time.time()
-            pred = self.ball_prediction.get_predicted(fps)
+            pred = self.ball_prediction.get_predicted(fps_count)
             time_for_prediction = 0
 
             if pred is not None:
@@ -234,7 +246,8 @@ class CameraManager:
                 time_for_prediction = round(time.time() - start_time, 4)
                 if mode == 2:
                     cv2.circle(frame, (self.goalie_x_pixel_position, pred), 10, (0, 255, 0), -1)
-                    cv2.putText(frame, "Prediction", (self.goalie_x_pixel_position, pred), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                    cv2.putText(frame, "Prediction", (self.goalie_x_pixel_position, pred), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.5,
                                 (255, 0, 0), 1)
 
             if time.time() - whole_loop_run_time > 0.021:
@@ -244,13 +257,90 @@ class CameraManager:
             if mode == 2:
                 path = self.ball_prediction.get_path()
                 if path:
-                  old_path = path
+                    old_path = path
                 self.draw_predicted_path(frame, old_path)
 
-                 # Display the current frame
+                # Display the current frame
                 # self.queue_from_camera.put((CameraEvent.CURRENT_FRAME, frame))
                 cv2.imshow("Frame", frame)
                 key = cv2.waitKey(1) & 0xFF
+
+    def record_game(self):
+
+        # Define the lower and upper HSV boundaries of the foosball and initialize
+        # the list of center points
+        mask1_lower = (0, 167, 118)
+        mask1_upper = (10, 255, 255)
+        mask2_lower = (160, 142, 134)
+        mask2_upper = (255, 255, 255)
+
+        # Initialize variables and loop to continuously get and process video
+        fps_count = 0
+        fps = 60
+        fps_time = time.time()
+        # Detect aruco markers
+        # self.corners, self.ids, self.rejected = (None, None, None)
+        old_path = None
+        # Calculate ratio of pixels to mm
+        while True:
+            try:
+                data = self.queue_to_camera.get_nowait()
+                if data[0] == CameraEvent.GOAL_FOR_BLUE:
+                    self.record_game_writer.goal_scored("blue")
+                elif data[0] == CameraEvent.GOAL_FOR_BLACK:
+                    self.record_game_writer.goal_scored("black")
+            except queue.Empty:
+                pass
+            if self.stop_flag.is_set():
+                return
+            # Get the RealSense frame to be processed by OpenCV
+            frame = self.read_color_frame()
+            fps_count += 1
+            if time.time() - fps_time > 1:
+                self.queue_from_camera.put((CameraEvent.FPS, fps_count))
+                fps_count = 0
+                fps_time = time.time()
+
+            # Get the region of interest, and only look for contours there in order to minimize computing necessity
+            region_of_interest_mask = np.zeros(frame.shape, dtype=np.uint8)
+            roi_corners = np.array([self.pixel_bottom_left_corner, self.pixel_top_left_corner,
+                                    self.pixel_top_right_corner, self.pixel_bottom_right_corner])
+            cv2.fillPoly(region_of_interest_mask, [roi_corners], (255, 255, 255))
+            region_of_interest_frame = cv2.bitwise_and(frame, region_of_interest_mask)
+
+            # Resize and blur the frame, then convert to HSV
+            blurred = cv2.GaussianBlur(region_of_interest_frame, (5, 5), 0)
+            hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+
+            # Construct color mask, then erode and dilate to clean up extraneous
+            # contours
+            mask1 = cv2.inRange(hsv, mask1_lower, mask1_upper)
+            mask2 = cv2.inRange(hsv, mask2_lower, mask2_upper)
+            mask = cv2.bitwise_or(mask1, mask2)
+            # cv2.imshow("region of interest", mask.copy())
+            kernel = np.ones((3, 3), np.uint8)
+            mask = cv2.erode(mask, kernel, iterations=1)
+            kernel = np.ones((5, 5), np.uint8)
+            mask = cv2.dilate(mask, kernel, iterations=2)
+
+            # Find all contours in the mask and initialize the center
+
+            cnts = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cnts = imutils.grab_contours(cnts)
+
+            # Initialize the best contour to none, then search for the best one
+            if len(cnts) == 1:
+                best_contour = cnts[0]
+                center, radius = cv2.minEnclosingCircle(best_contour)
+                center = tuple(map(int, center))
+                radius = int(radius)
+                cv2.circle(frame, center, radius, (0, 0, 255), 2)
+                M = cv2.moments(best_contour)
+                ball_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+                self.record_game_writer.add_new(ball_center[0], ball_center[1], fps)
+            else:
+                pass
+
 
     def __start_pipe(self):
         """
@@ -340,6 +430,7 @@ class CameraManager:
         def on_mouse(event, x, y, flags, param):
             if event == cv2.EVENT_MOUSEMOVE:
                 print("Pixel coordinates: ({}, {})".format(x, y))
+
         frame = self.read_color_frame()
         blurred = cv2.GaussianBlur(frame, (5, 5), 0)
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
@@ -379,8 +470,8 @@ class CameraManager:
             rect = cv2.minAreaRect(c)
             box = cv2.boxPoints(rect)
             box = box.astype(int)
-            #with open(CORNERS_FILE, "w") as f:
-                #json.dump(box.tolist(), f)
+            # with open(CORNERS_FILE, "w") as f:
+            # json.dump(box.tolist(), f)
 
         cv2.drawContours(frame, [box], 0, (0, 255, 0), 1)
         # Blue
@@ -418,11 +509,11 @@ class CameraManager:
 
         # Draw the contours on the original image
         # cv2.drawContours(frame, [box], -1, (0, 255, 0), 3)
-        #cv2.namedWindow("Image")
-        #cv2.setMouseCallback("Image", on_mouse)
-        #cv2.imshow('Image', frame)
-        #cv2.waitKey(0)
-        #cv2.destroyAllWindows()
+        # cv2.namedWindow("Image")
+        # cv2.setMouseCallback("Image", on_mouse)
+        # cv2.imshow('Image', frame)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
 
     def __calculate_pixel_to_mm(self):
         self.pixel_to_mm_x = (self.pixel_bottom_right_corner[0] - self.pixel_bottom_left_corner[

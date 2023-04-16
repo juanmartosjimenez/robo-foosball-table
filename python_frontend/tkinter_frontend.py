@@ -68,11 +68,22 @@ class Frontend(tk.Tk):
                                              command=lambda: self.queue_from_frontend.put_nowait(
                                                  (FrontendEvent.TEST_LATENCY, None)))
         self.test_latency_button.grid(row=7, column=0)
-        # video feed
-        self.video_feed = tk.Label(self, bg="white", height=600)
-        self.video_feed.grid(row=8, column=0, columnspan=2, sticky="NSWE")
         self.frame_count = 0
         self.start_time = time.time()
+
+        self.start_record_game_button = tk.Button(self, text="Record Game",
+                                                  command=lambda: self.queue_from_frontend.put_nowait(
+                                                      (FrontendEvent.RECORD_GAME, None)))
+        self.start_record_game_button.grid(row=7, column=1)
+
+        self.goal_for_blue_button = tk.Button(self, text="Goal for Blue",
+                                              command=lambda: self.queue_from_frontend.put_nowait(
+                                                  (FrontendEvent.GOAL_FOR_BLUE, None)))
+        self.goal_for_blue_button.grid(row=8, column=0)
+        self.goal_for_black = tk.Button(self, text="Goal for Black",
+                                        command=lambda: self.queue_from_frontend.put_nowait(
+                                            (FrontendEvent.GOAL_FOR_BLACK, None)))
+        self.goal_for_black.grid(row=8, column=1)
 
         self.event_loop()
 

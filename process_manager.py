@@ -78,7 +78,7 @@ class ProcessManager:
         self._clear_queues()
         self.stop_flag.clear()
         self.camera_process.start()
-        self.motor_process.start()
+        #self.motor_process.start()
 
     def _read_motors(self):
         try:
@@ -172,6 +172,12 @@ class ProcessManager:
             elif event == FrontendEvent.HOME_M1:
                 self._assert_not_stopped()
                 self.queue_to_motors.put_nowait((MotorEvent.HOME_M1, None))
+            elif event == FrontendEvent.GOAL_FOR_BLACK:
+                self.queue_to_camera.put_nowait((CameraEvent.GOAL_FOR_BLACK, None))
+            elif event == FrontendEvent.GOAL_FOR_BLUE:
+                self.queue_to_camera.put_nowait((CameraEvent.GOAL_FOR_BLUE, None))
+            elif event == FrontendEvent.RECORD_GAME:
+                self.queue_to_camera.put_nowait((CameraEvent.RECORD_GAME, None))
             else:
                 print(f"Unknown read_tkinter_frontend event: {str(queue_data)}")
         except queue.Empty:

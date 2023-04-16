@@ -16,6 +16,9 @@ class FrontendEvent(Enum):
     MOVE_TO_START_POS = 11
     TEST_LATENCY = 12
     CURRENT_FRAME = 13
+    GOAL_FOR_BLUE = 14
+    GOAL_FOR_BLACK = 15
+    RECORD_GAME = 16
 
 
 
@@ -45,6 +48,9 @@ class CameraEvent(Enum):
     TEST_STRIKE = 7
     CURRENT_FRAME = 8
     QUICK_STRIKE = 9
+    RECORD_GAME = 10
+    GOAL_FOR_BLACK = 11
+    GOAL_FOR_BLUE = 12
 
 
 class LinearMotorEvent(Enum):
