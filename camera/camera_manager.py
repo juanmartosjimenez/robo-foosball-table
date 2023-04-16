@@ -80,7 +80,7 @@ class CameraManager:
                 event = data[0]
                 if event == CameraEvent.START_BALL_TRACKING:
                     self.queue_from_camera.put(("message", "Ball tracking started"))
-                    self.start_ball_tracking()
+                    self.start_ball_tracking(mode="Display")
                 elif event == CameraEvent.TEST_STRIKE:
                     start_time = time.time()
                     print("LATENCY TEST START", time.time())

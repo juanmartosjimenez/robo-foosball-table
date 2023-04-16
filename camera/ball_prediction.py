@@ -217,7 +217,7 @@ class BallPrediction:
             if x_prime == self.target_x_pixel and total_elapsed_time < 0.6:
                 #if 0.15 < total_elapsed_time < 0.30:
                 #    self.queue_from_camera.put_nowait((CameraEvent.STRIKE, None))
-                if 0 < total_elapsed_time < 0.15 and abs(curr_pos[0] - self.target_x_pixel) < 400:
+                if 0 < total_elapsed_time < 0.15 and abs(curr_pos[0] - self.target_x_pixel) < 800:
 
                     self.queue_from_camera.put_nowait((CameraEvent.QUICK_STRIKE, None))
                 return y_prime, predicted_trajectory
